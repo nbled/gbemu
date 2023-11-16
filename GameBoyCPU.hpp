@@ -5,6 +5,7 @@
 #include <iostream>
 #include <iomanip>
 
+#include "GameBoyRegisters.hpp"
 #include "GameBoyMMap.hpp"
 
 namespace GameBoy 
@@ -13,7 +14,6 @@ namespace GameBoy
 class CPU
 {
 private:
-    /* TODO: rework the structure to handle instr. mask */
     enum Condition {
         NZ  = 0,
         Z   = 1,
@@ -27,25 +27,12 @@ private:
         STATUS_STOPPED
     } status;
 
-    struct {
-        uint8_t b;  /* 000 */
-        uint8_t c;  /* 001 */
-        uint8_t d;  /* 010 */
-        uint8_t e;  /* 011 */
-        uint8_t h;  /* 100 */
-        uint8_t l;  /* 101 */
-        uint8_t null0;
-        uint8_t a;  /* 111 */
-        uint8_t f;
-
-        uint16_t sp;
-        uint16_t pc;
-    } registers;
-
     bool interrupts;
 
     MMap& mmap;
     uint64_t cycles;
+
+    Registers registers;
 
     /* Helper functions to manipulate PC */
     inline uint8_t FetchByte(void)
@@ -83,14 +70,14 @@ private:
     /* Stack implementation */
     inline void Push(uint16_t value)
     {
-        this->SetSP(this->GetSP() - 2);
+        this->registers.sp = this->registers.sp - 2;
         this->mmap.WriteHalfWord(this->registers.sp, value);
     }
 
     inline uint16_t Pop(void)
     {
         uint16_t value = this->mmap.LoadHalfWord(this->registers.sp);
-        this->SetSP(this->GetSP() + 2);
+        this->registers.sp = this->registers.sp + 2;
         return value;
     }
 
@@ -98,51 +85,20 @@ private:
     inline uint8_t* GetOperandPointer(uint8_t id)
     {
         if (id == 6)
-            return this->mmap.GetBytePointer(this->GetHL());
+            return this->mmap.GetBytePointer(this->registers.GetHL());
         return &(&this->registers.b)[id];
-    }
-
-    /* 16-bit registers functions */
-    inline uint16_t GetBC(void) const { return (this->registers.b << 8) | (this->registers.c); }
-    inline uint16_t GetDE(void) const { return (this->registers.d << 8) | (this->registers.e); }
-    inline uint16_t GetHL(void) const { return (this->registers.h << 8) | (this->registers.l); }
-    inline uint16_t GetSP(void) const { return this->registers.sp; }
-    inline uint16_t GetAF(void) const { return (this->registers.a << 8) | (this->registers.f); }
-
-    inline void SetBC(const uint16_t bc) { 
-        this->registers.b = (bc & 0xff00) >> 8;
-        this->registers.c = bc & 0x00ff;
-    }
-
-    inline void SetDE(const uint16_t de) { 
-        this->registers.d = (de & 0xff00) >> 8;
-        this->registers.e = de & 0x00ff;
-    }
-
-    inline void SetHL(const uint16_t hl) { 
-        this->registers.h = (hl & 0xff00) >> 8;
-        this->registers.l = hl & 0x00ff;
-    }
-
-    inline void SetSP(const uint16_t sp) {
-        this->registers.sp = sp;
-    }
-
-    inline void SetAF(const uint16_t af) { 
-        this->registers.a = (af & 0xff00) >> 8;
-        this->registers.f = af & 0x00ff;
     }
     
     inline uint16_t GetHalfWordRegister(uint8_t id, bool use_af) const {
         switch (id) {
-            case 0: return this->GetBC();
-            case 1: return this->GetDE();
-            case 2: return this->GetHL();
+            case 0: return this->registers.GetBC();
+            case 1: return this->registers.GetDE();
+            case 2: return this->registers.GetHL();
             case 3: 
                 if (use_af)
-                    return this->GetAF();
+                    return this->registers.GetAF();
                 else
-                    return this->GetSP();
+                    return this->registers.sp;
             default:
                 std::cout << "error" << std::endl;
                 break;
@@ -151,57 +107,36 @@ private:
 
     inline void SetHalfWordRegister(uint8_t id, uint16_t hw, bool use_af) {
         switch (id) {
-            case 0: return this->SetBC(hw);
-            case 1: return this->SetDE(hw);
-            case 2: return this->SetHL(hw);
+            case 0: this->registers.SetBC(hw); break;
+            case 1: this->registers.SetDE(hw); break;
+            case 2: this->registers.SetHL(hw); break;
             case 3: 
                 if (use_af) 
-                    return this->SetAF(hw);
+                    this->registers.SetAF(hw);
                 else
-                    return this->SetSP(hw);
+                    this->registers.sp = hw;
+                break;
             default:
                 std::cout << "error" << std::endl;
                 break;
         }
     }
 
-    inline void IncHL(void) { this->SetHL(this->GetHL() + 1); }
-    inline void DecHL(void) { this->SetHL(this->GetHL() - 1); }
-
-    /* Flags related functions */
-    inline void SetFlag(uint8_t pos, bool bit)
-    {
-        if (bit)
-            this->registers.f |= (1 << pos);
-        else
-            this->registers.f &= ~(1 << pos);
-    }
-
-    inline bool GetFlag(uint8_t pos) const
-    {
-        return (this->registers.f & (1 << pos)) >> (8 - pos);
-    }
-
-    inline void SetCarry(bool c)     { this->SetFlag(4, c); }
-    inline void SetHalfCarry(bool h) { this->SetFlag(5, h); }
-    inline void SetSubstract(bool n) { this->SetFlag(6, n); }
-    inline void SetZero(bool z)      { this->SetFlag(7, z); }
-
-    inline bool GetCarry(void)      const { return GetFlag(4); }
-    inline bool GetHalfCarry(void)  const { return GetFlag(5); }
-    inline bool GetSubstract(void)  const { return GetFlag(6); }
-    inline bool GetZero(void)       const { return GetFlag(7); }
+    inline void IncHL(void) { this->registers.SetHL(this->registers.GetHL() + 1); }
+    inline void DecHL(void) { this->registers.SetHL(this->registers.GetHL() - 1); }
 
 public:
     CPU(MMap& gbMMap);
     void Reset(void);
     void Step(void);
 
-    void DumpState(void);
-
     inline uint16_t GetPC(void) const
     {
         return this->registers.pc;
+    }
+
+    void Dump(void) const {
+        this->registers.Dump();
     }
 };
 

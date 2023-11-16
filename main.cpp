@@ -22,11 +22,11 @@ int main()
     mmap.Write(0x100, code, size);
 
     while (cpu.GetPC() != end) {
-        cpu.DumpState();
+        cpu.Dump();
         cpu.Step();
         std::cout << std::endl;
     }
-    cpu.DumpState();
+    cpu.Dump();
 
     return 0;
 }
