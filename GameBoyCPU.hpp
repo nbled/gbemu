@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iostream>
 #include <iomanip>
+#include <string>
 
 #include "GameBoyRegisters.hpp"
 #include "GameBoyMMap.hpp"
@@ -13,6 +14,13 @@ namespace GameBoy
 
 class CPU
 {
+public:
+    enum Status {
+        StatusRunning,
+        StatusHalted,
+        StatusStopped
+    };
+
 private:
     enum Condition {
         NZ  = 0,
@@ -21,27 +29,29 @@ private:
         C   = 3
     };
 
-    enum {
-        STATUS_RUNNING,
-        STATUS_HALTED,
-        STATUS_STOPPED
-    } status;
-
+    /* CPU Status */
+    enum Status status;
     bool interrupts;
-
-    MMap& mmap;
     uint64_t cycles;
 
+    MMap& mmap;
     Registers registers;
+
+    /* Last executed instruction name */
+    std::string lastInstr;
+    /* Last executed instruction size */
+    uint8_t lastInstrSize;
 
     /* Helper functions to manipulate PC */
     inline uint8_t FetchByte(void)
     {
+        this->lastInstrSize++;
         return this->mmap.LoadByte(this->registers.pc++);
     }
 
     inline uint16_t FetchHalfWord(void)
     {
+        this->lastInstrSize += 2;
         uint16_t halfWord = this->mmap.LoadHalfWord(this->registers.pc);
         this->registers.pc += 2;
         return halfWord;
@@ -88,7 +98,7 @@ private:
             return this->mmap.GetBytePointer(this->registers.GetHL());
         return &(&this->registers.b)[id];
     }
-    
+
     inline uint16_t GetHalfWordRegister(uint8_t id, bool use_af) const {
         switch (id) {
             case 0: return this->registers.GetBC();
@@ -125,6 +135,54 @@ private:
     inline void IncHL(void) { this->registers.SetHL(this->registers.GetHL() + 1); }
     inline void DecHL(void) { this->registers.SetHL(this->registers.GetHL() - 1); }
 
+    /* Display Functions */
+    inline const std::string GetOperandFormat(uint8_t id) const
+    {
+        switch (id) {
+            case 0: return "B";
+            case 1: return "C";
+            case 2: return "D";
+            case 3: return "E";
+            case 4: return "H";
+            case 5: return "L";
+            case 6: return "(HL)";
+            case 7: return "A";
+            default:
+                break;
+        }
+        return "";
+    }
+
+    inline const std::string GetHalfWordFormat(uint8_t id, bool use_af) 
+    {
+        switch (id) {
+            case 0: return "BC";
+            case 1: return "DE";
+            case 2: return "HL";
+            case 3: 
+                if (use_af)
+                    return "AF";
+                else
+                    return "SP";
+            default:
+                break;
+        }
+        return "";
+    }
+
+    inline const std::string GetConditionFormat(enum Condition cc)
+    {
+        switch (cc) {
+            case NZ:    return "NZ";
+            case Z:     return "Z";
+            case NC:    return "NC";
+            case C:     return "C";
+            default:
+                break;
+        }
+        return "";
+    }
+
 public:
     CPU(MMap& gbMMap);
     void Reset(void);
@@ -135,7 +193,19 @@ public:
         return this->registers.pc;
     }
 
+    inline enum Status GetStatus(void) const
+    {
+        return this->status;
+    }
+
     void Dump(void) const {
+        /* TODO: fix the current system, we should be able to decode instruction before executing it */
+        printf("%04X: ", this->registers.pc - this->lastInstrSize);
+        for (uint16_t address = this->registers.pc - this->lastInstrSize; address < this->registers.pc; address++) {
+            printf("%02X ", this->mmap.LoadByte(address));
+        }
+        printf("\t%s\n", this->lastInstr.c_str());
+
         this->registers.Dump();
     }
 };
