@@ -17,8 +17,8 @@ void CPU::Reset()
 
 void CPU::Step()
 {
-    uint8_t opcode = this->mmap.LoadByte(this->registers.pc++);
-        std::cout << std::hex << (int)opcode << std::endl;
+    uint8_t opcode = this->FetchByte();
+    std::cout << std::hex << (int)opcode << std::endl;
 
     /* 8 bits loads */
     if ((opcode & 0xc0) == 0x40) {
@@ -30,7 +30,7 @@ void CPU::Step()
     } else if ((opcode & 0xc7) == 0x06) {
         /* LD r, n | r = n */
         uint8_t dstId = (opcode & 0x38) >> 3;
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
 
         *this->GetOperandPointer(dstId) = n;
     } else if (opcode == 0x0a) {
@@ -47,17 +47,11 @@ void CPU::Step()
         this->mmap.WriteByte(this->GetDE(), this->registers.a);
     } else if (opcode == 0xfa) {
         /* LD A, (nn) */
-        uint16_t nn = 0;
-        this->mmap.Load(this->GetPC(), (uint8_t*) &nn, sizeof(nn));
-        this->registers.pc += 2;
-
+        uint16_t nn = this->FetchHalfWord();
         this->registers.a = this->mmap.LoadByte(nn);
     } else if (opcode == 0xea) {
         /* LD (nn), a */
-        uint16_t nn = 0;
-        this->mmap.Load(this->GetPC(), (uint8_t*) &nn, sizeof(nn));
-        this->registers.pc += 2;
-
+        uint16_t nn = this->FetchHalfWord();
         this->mmap.WriteByte(nn, this->registers.a);
     } else if (opcode == 0xf2) {
         /* LDH a, (c) */
@@ -67,11 +61,11 @@ void CPU::Step()
         this->mmap.WriteByte(0xff00 + this->registers.c, this->registers.a);
     } else if (opcode == 0xe0) {
         /* LDH a, (n) */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->registers.a = this->mmap.LoadByte(0xff00 + n);
     } else if (opcode == 0xf0) {
         /* LDH (n), a */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->mmap.WriteByte(0xff00 + n, this->registers.a);
     } else if (opcode == 0x3a) {
         /* LD a, (HL-) */
@@ -189,47 +183,43 @@ void CPU::Step()
     else if ((opcode & 0xcf) == 0x01) {
         /* LD rr, nn */
         uint8_t dstId = (opcode & 0x30) >> 4;
-        uint16_t nn;
-
-        this->mmap.Load(this->registers.pc, (uint8_t*) &nn, sizeof(nn));
-        this->registers.pc += 2;
-
-        switch (dstId) {
-            case 0: this->SetBC(nn); break;
-            case 1: this->SetDE(nn); break;
-            case 2: this->SetHL(nn); break;
-            case 3: this->SetSP(nn); break;
-            default:
-                std::cout << "error" << std::endl;
-                break;
-        }
+        uint16_t nn = this->FetchHalfWord();
+        this->SetHalfWordRegister(dstId, nn, false);
     } else if (opcode == 0x08) {
         /* LD (nn), SP */
-        uint16_t nn;
-
-        this->mmap.Load(this->registers.pc, (uint8_t*) &nn, sizeof(nn));
-        this->registers.pc += 2;
-
-        this->mmap.Write(nn, (uint8_t*) &this->registers.sp, sizeof(this->registers.sp));
+        uint16_t nn = this->FetchHalfWord();
+        this->mmap.WriteHalfWord(nn, this->registers.sp);
     } else if (opcode == 0xf9) {
         /* LD SP, HL */
         this->SetSP(this->GetHL());
     } else if (opcode == 0xf8) {
         /* LDHL SP, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
-        /* TODO: set flags */
-        this->SetHL(this->GetSP() + n);
+        int8_t n = (int8_t) this->FetchByte();
+        this->SetHalfCarry((((this->GetSP() & 0xff) + (n & 0xff)) & 0x100) >> 8);
+
+        uint32_t tmp = this->GetSP() + n;
+        this->SetCarry((tmp & 0x10000) >> 16);
+
+        this->SetZero(0);
+        this->SetSubstract(0);
+
+        this->SetHL(tmp);
     } else if ((opcode & 0xcf) == 0xc5) {
         /* PUSH rr */
         uint8_t srcId = (opcode & 0x30) >> 4;
-        /* TODO */
+        uint16_t nn = this->GetHalfWordRegister(srcId, true);
+        this->Push(nn);
+    } else if ((opcode & 0xcf) == 0xc1) {
+        /* POP rr */
+        uint8_t dstId = (opcode & 0x30) >> 4;
+        this->SetHalfWordRegister(dstId, this->Pop(), true);
     }
 
     /* 16-bits ALU */
     else if ((opcode & 0xcf) == 0x09) {
         /* ADD HL, rr */
         uint8_t dstId = (opcode & 0x30) >> 4;
-        uint16_t n = this->GetHalfWordRegister(dstId);
+        uint16_t n = this->GetHalfWordRegister(dstId, false);
 
         this->SetHalfCarry((((this->GetSP() & 0xff) + (n & 0xff)) & 0x100) >> 8);
 
@@ -255,11 +245,98 @@ void CPU::Step()
     } else if ((opcode & 0xcf) == 0x03) {
         /* INC rr */
         uint8_t dstId = (opcode & 0x30) >> 4;
-        this->SetHalfWordRegister(dstId, this->GetHalfWordRegister(dstId) + 1);
+        this->SetHalfWordRegister(dstId, this->GetHalfWordRegister(dstId, false) + 1, false);
     } else if ((opcode & 0xcf) == 0x0b) {
         /* DEC rr */
         uint8_t dstId = (opcode & 0x30) >> 4;
-        this->SetHalfWordRegister(dstId, this->GetHalfWordRegister(dstId) - 1);
+        this->SetHalfWordRegister(dstId, this->GetHalfWordRegister(dstId, false) - 1, false);
+    }
+
+    /* Control flow */
+    else if (opcode == 0xc3) {
+        /* JP nn */
+        uint16_t nn;
+
+        this->mmap.Load(this->registers.pc, (uint8_t*) &nn, sizeof(nn));
+        this->registers.pc += 2;
+  
+        this->registers.pc = nn;
+    } else if ((opcode & 0xe7) == 0xc2) {
+        /* JP cc, nn */
+        uint8_t cc = (opcode & 0x18) >> 3;
+        uint16_t nn = this->mmap.LoadHalfWord(this->registers.pc);
+
+        this->JumpAbsoluteConditional((enum Condition) cc, nn);
+    } else if (opcode == 0xe9) {
+        /* JP (HL) */
+        this->registers.pc = this->mmap.LoadHalfWord(this->GetHL());
+    } else if (opcode == 0x18) {
+        /* JR n */
+        uint8_t n = this->FetchByte();
+        this->registers.pc += n;
+    } else if ((opcode & 0xe7) == 0x20) {
+        /* JR cc, n */
+        uint8_t cc = (opcode & 0x18) >> 3;
+        uint8_t n = this->FetchByte();
+
+        this->JumpRelativeConditional((enum Condition) cc, n);
+    } else if (opcode == 0x12) {
+        /* CALL nn */
+        uint16_t nn = this->FetchHalfWord();
+        this->Push(this->registers.pc);
+        this->registers.pc = nn;
+    } else if ((opcode & 0xe7) == 0xc4) {
+        /* CALL cc, nn */
+        uint8_t cc = (opcode & 0x18) >> 3;
+        uint16_t nn = this->mmap.LoadHalfWord(this->registers.pc);
+
+        this->Push(this->registers.pc);
+        this->JumpAbsoluteConditional((enum Condition) cc, nn);
+    } else if (opcode == 0xc9) {
+        /* RET */
+        this->registers.pc = this->Pop();
+    } else if ((opcode & 0xe7) == 0xc0) {
+        /* RET cc */
+        uint8_t cc = (opcode & 0x18) >> 3;
+
+        switch (cc) {
+            case NZ:
+                if (!this->GetZero())
+                    this->registers.pc = this->Pop();
+                break;
+            case Z:
+                if (this->GetZero())
+                    this->registers.pc = this->Pop();
+                break;
+            case NC:
+                if (!this->GetCarry())
+                    this->registers.pc = this->Pop();
+                break;
+            case C:
+                if (this->GetCarry())
+                    this->registers.pc = this->Pop();
+                break;
+            default:
+                break;
+        }        
+    } else if (opcode == 0xd9) {
+        this->registers.pc = this->Pop();
+        this->interrupts = true;
+    }
+
+    /* Misc & System */
+    else if (opcode == 0x00) {
+        /* NOP */
+        ;
+    } else if (opcode == 0x76) {
+        /* HALT */
+        this->status = STATUS_HALTED;
+    } else if (opcode == 0xF3) {
+        /* DI */
+        this->interrupts = false;
+    } else if (opcode == 0xFB) {
+        /* EI */
+        this->interrupts = true;
     }
 }
 
@@ -434,6 +511,30 @@ void CPU::CPL(void)
     this->registers.a = ~this->registers.a;
     this->SetSubstract(1);
     this->SetHalfCarry(1);
+}
+
+void CPU::JumpAbsoluteConditional(enum CPU::Condition cc, uint16_t address)
+{
+    switch (cc) {
+        case NZ:
+            if (!this->GetZero())
+                this->registers.pc = address;
+            break;
+        case Z:
+            if (this->GetZero())
+                this->registers.pc = address;
+            break;
+        case NC:
+            if (!this->GetCarry())
+                this->registers.pc = address;
+            break;
+        case C:
+            if (this->GetCarry())
+                this->registers.pc = address;
+            break;
+        default:
+            break;
+    }
 }
 
 };

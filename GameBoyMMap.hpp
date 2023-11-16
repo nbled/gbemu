@@ -37,6 +37,18 @@ public:
         this->memory[address] = byte;
     }
 
+    uint16_t LoadHalfWord(uint16_t address) const
+    {
+        uint16_t halfword;
+        this->Load(address, (uint8_t*) &halfword, sizeof(halfword));
+        return halfword;
+    }
+
+    void WriteHalfWord(uint16_t address, uint16_t halfword) 
+    {
+        this->Write(address, (const uint8_t*) &halfword, sizeof(halfword));
+    }
+
     void Load(uint16_t address, uint8_t *bytes, uint16_t size) const
     {
         for (uint16_t i = 0; i < size; i++) {
