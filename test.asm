@@ -68,6 +68,13 @@ Loop:
     bit 6, a
     bit 7, a
 
+    ld b, 18
+    ld c, 7
+    call Mult
+
+    cp $0a
+    jp nz, Failure
+
 Success:
     ld a, 1
     halt
@@ -75,3 +82,19 @@ Success:
 Failure:
     ld a, 0
     halt
+
+Mult:
+    push bc
+    ld a, b
+    cp a, 0         ; if (b == 0)
+    jp z, MultRet0  ;   goto MultRet0;
+    dec b
+    call Mult       
+    add c
+    pop bc
+    ret             ; return c + Mult(b--, c);
+MultRet0:
+    ld a, 0         ; MultRet0:
+    pop bc
+    ret             ;   return 0;
+

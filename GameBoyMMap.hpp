@@ -2,11 +2,12 @@
 #define GBEMU_MMAP_HPP
 
 #include <cstdint>
+#include "GameBoyMemoryInterface.hpp"
 
 namespace GameBoy
 {
 
-class MMap
+class MMap : public MemoryInterface
 {
 private:
     uint8_t *memory;
@@ -20,11 +21,6 @@ public:
     ~MMap()
     {
         delete this->memory;
-    }
-
-    uint8_t* GetBytePointer(uint16_t address) 
-    {
-        return this->memory + address;
     }
 
     uint8_t LoadByte(uint16_t address) const

@@ -34,7 +34,7 @@ private:
     bool interrupts;
     uint64_t cycles;
 
-    MMap& mmap;
+    MemoryInterface& mmap;
     Registers registers;
 
     /* Last executed instruction name */
@@ -66,14 +66,14 @@ private:
     void AOr(uint8_t value);
     void AXor(uint8_t value);
     void ACp(uint8_t value);
-    void Inc(uint8_t *operand);
-    void Dec(uint8_t *operand);
+    void Inc(uint8_t id);
+    void Dec(uint8_t id);
     void DAA(void);
     void CPL(void);
 
     /* Rotate implementations */
-    void RotateLeft(uint8_t *op, bool through_carry);
-    void RotateRight(uint8_t *op, bool through_carry);
+    void RotateLeft(uint8_t id, bool through_carry);
+    void RotateRight(uint8_t id, bool through_carry);
 
     /* Jump implemntation */
     void JumpAbsoluteConditional(enum Condition cc, uint16_t address);
@@ -98,11 +98,18 @@ private:
     }
 
     /* 8-bit registers functions */
-    inline uint8_t* GetOperandPointer(uint8_t id)
+    inline uint8_t GetByteRegister(uint8_t id)
     {
         if (id == 6)
-            return this->mmap.GetBytePointer(this->registers.GetHL());
-        return &(&this->registers.b)[id];
+            return this->mmap.LoadByte(this->registers.GetHL());
+        return (&this->registers.b)[id];
+    }
+
+    inline void SetByteRegister(uint8_t id, uint8_t n)
+    {
+        if (id == 6)
+            return this->mmap.WriteByte(this->registers.GetHL(), n);
+        (&this->registers.b)[id] = n;
     }
 
     inline uint16_t GetHalfWordRegister(uint8_t id, bool use_af) const {
@@ -190,7 +197,7 @@ private:
     }
 
 public:
-    CPU(MMap& gbMMap);
+    CPU(MemoryInterface& gbMMap);
     void Reset(void);
     void Step(void);
 
@@ -202,6 +209,26 @@ public:
     inline enum Status GetStatus(void) const
     {
         return this->status;
+    }
+
+    inline Registers& GetRegisters(void)
+    {
+        return this->registers;
+    }
+
+    inline bool InterruptsEnabled(void) const
+    {
+        return this->interrupts;
+    }
+
+    inline void SetInterruptsSwitch(bool b)
+    {
+        this->interrupts = b;
+    }
+
+    inline void SetStatus(enum Status status)
+    {
+        this->status = status;
     }
 
     void Dump(void) const {
