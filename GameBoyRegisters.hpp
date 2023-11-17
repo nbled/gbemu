@@ -96,7 +96,7 @@ public:
         else
             printf("-");
         if (this->GetCarry())
-            printf("N");
+            printf("C");
         else
             printf("-");
         printf("\n");

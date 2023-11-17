@@ -41,6 +41,8 @@ private:
     std::string lastInstr;
     /* Last executed instruction size */
     uint8_t lastInstrSize;
+    /* Last executed instruction pc */
+    uint16_t lastPC;
 
     /* Helper functions to manipulate PC */
     inline uint8_t FetchByte(void)
@@ -200,8 +202,8 @@ public:
 
     void Dump(void) const {
         /* TODO: fix the current system, we should be able to decode instruction before executing it */
-        printf("%04X: ", this->registers.pc - this->lastInstrSize);
-        for (uint16_t address = this->registers.pc - this->lastInstrSize; address < this->registers.pc; address++) {
+        printf("%04X: ", this->lastPC);
+        for (uint16_t address = this->lastPC; address < this->lastPC + this->lastInstrSize; address++) {
             printf("%02X ", this->mmap.LoadByte(address));
         }
         printf("\t%s\n", this->lastInstr.c_str());

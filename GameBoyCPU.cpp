@@ -18,6 +18,7 @@ void CPU::Reset()
 
     /* TODO: fix lastInstrSize to handle jump correctly */
     this->lastInstr = "";
+    this->lastPC = 0;
     this->lastInstrSize = 0;
 
     this->status = StatusRunning;
@@ -26,6 +27,8 @@ void CPU::Reset()
 void CPU::Step()
 {
     this->lastInstrSize = 0;
+    this->lastPC = this->registers.pc;
+
     uint8_t opcode = this->FetchByte();
 
     /* 8 bits loads */
@@ -117,7 +120,7 @@ void CPU::Step()
         this->lastInstr = "ADD a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xc6) {
         /* ADD a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->AAdd(n);
         this->lastInstr = "ADD a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x88) {
@@ -127,7 +130,7 @@ void CPU::Step()
         this->lastInstr = "ADC a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xce) {
         /* ADC a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->AAdd(n + this->registers.GetCarry());
         this->lastInstr = "ADC a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x90) {
@@ -137,7 +140,7 @@ void CPU::Step()
         this->lastInstr = "SUB a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xd6) {
         /* SUB a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->ASub(n);
         this->lastInstr = "SUB a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x98) {
@@ -147,7 +150,7 @@ void CPU::Step()
         this->lastInstr = "SBC a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xde) {
         /* SBC a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->ASub(n + this->registers.GetCarry());
         this->lastInstr = "SBC a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xa0) {
@@ -157,7 +160,7 @@ void CPU::Step()
         this->lastInstr = "AND a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xe6) {
         /* AND a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->AAnd(n);
         this->lastInstr = "AND a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xa8) {
@@ -167,7 +170,7 @@ void CPU::Step()
         this->lastInstr = "XOR a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xee) {
         /* XOR a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->AXor(n);
         this->lastInstr = "XOR a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xb0) {
@@ -177,7 +180,7 @@ void CPU::Step()
         this->lastInstr = "OR a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xf6) {
         /* OR a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->AOr(n);
         this->lastInstr = "OR a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xb8) {
@@ -187,7 +190,7 @@ void CPU::Step()
         this->lastInstr = "CP a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xfe) {
         /* CP a, n */
-        uint8_t n = this->mmap.LoadByte(this->registers.pc++);
+        uint8_t n = this->FetchByte();
         this->ACp(n);
         this->lastInstr = "CP a, " + std::to_string(n);
     } else if ((opcode & 0xc7) == 0x04) {
@@ -231,13 +234,16 @@ void CPU::Step()
         uint8_t dstId = (opcode & 0x30) >> 4;
         uint16_t nn = this->FetchHalfWord();
         this->SetHalfWordRegister(dstId, nn, false);
+        this->lastInstr = "LD " + this->GetHalfWordFormat(dstId, false) + ", " + std::to_string(nn);
     } else if (opcode == 0x08) {
         /* LD (nn), SP */
         uint16_t nn = this->FetchHalfWord();
         this->mmap.WriteHalfWord(nn, this->registers.sp);
+        this->lastInstr = "LD (" + std::to_string(nn) + "), SP";
     } else if (opcode == 0xf9) {
         /* LD SP, HL */
         this->registers.sp = this->registers.GetHL();
+        this->lastInstr = "LD SP, HL";
     } else if (opcode == 0xf8) {
         /* LDHL SP, n */
         int8_t n = (int8_t) this->FetchByte();
@@ -250,15 +256,19 @@ void CPU::Step()
         this->registers.SetSubstract(0);
 
         this->registers.SetHL(tmp);
+
+        this->lastInstr = "LDHL SP, " + std::to_string(n);
     } else if ((opcode & 0xcf) == 0xc5) {
         /* PUSH rr */
         uint8_t srcId = (opcode & 0x30) >> 4;
         uint16_t nn = this->GetHalfWordRegister(srcId, true);
         this->Push(nn);
+        this->lastInstr = "PUSH " + this->GetHalfWordFormat(srcId, true);
     } else if ((opcode & 0xcf) == 0xc1) {
         /* POP rr */
         uint8_t dstId = (opcode & 0x30) >> 4;
         this->SetHalfWordRegister(dstId, this->Pop(), true);
+        this->lastInstr = "POP " + this->GetHalfWordFormat(dstId, true);
     }
 
     /* 16-bits ALU */
@@ -280,7 +290,7 @@ void CPU::Step()
         this->lastInstr = "ADD HL, " + this->GetHalfWordFormat(dstId, false);
     } else if (opcode == 0xe8) {
         /* ADD SP, n */
-        int8_t n = (int8_t) this->mmap.LoadByte(this->registers.pc++);
+        int8_t n = (int8_t) this->FetchByte();
         this->registers.SetHalfCarry((((this->registers.sp & 0xff) + (n & 0xff)) & 0x100) >> 8);
 
         uint32_t tmp = this->registers.sp + n;
@@ -318,7 +328,7 @@ void CPU::Step()
     } else if ((opcode & 0xe7) == 0xc2) {
         /* JP cc, nn */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
-        uint16_t nn = this->mmap.LoadHalfWord(this->registers.pc);
+        uint16_t nn = this->FetchHalfWord();
 
         this->JumpAbsoluteConditional(cc, nn);
         this->lastInstr = "JP " + this->GetConditionFormat(cc) + ", " + std::to_string(nn);
