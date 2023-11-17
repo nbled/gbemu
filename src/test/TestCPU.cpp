@@ -2,8 +2,8 @@
 
 #include "gbit/lib/tester.h"
 
-#include "GameBoyCPU.hpp"
-#include "GameBoyMockMMap.hpp"
+#include "cpu/CPU.hpp"
+#include "test/MockMMap.hpp"
 
 static GameBoy::MockMMap *mmap;
 static GameBoy::CPU *cpu;

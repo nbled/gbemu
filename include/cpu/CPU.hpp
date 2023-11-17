@@ -6,8 +6,8 @@
 #include <iomanip>
 #include <string>
 
-#include "GameBoyRegisters.hpp"
-#include "GameBoyMMap.hpp"
+#include "cpu/Registers.hpp"
+#include "cpu/MMap.hpp"
 
 namespace GameBoy 
 {

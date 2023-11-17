@@ -1,4 +1,4 @@
-#include "GameBoyCPU.hpp"
+#include "cpu/CPU.hpp"
 
 namespace GameBoy 
 {

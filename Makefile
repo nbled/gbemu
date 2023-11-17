@@ -1,32 +1,33 @@
-MGBDIS=mgbdis/
+GBIT=gbit/
 
-all: gbcpu test.gb
+CXX=g++
 
-test: TestCPU
+CXXFLAGS=-Wall -Wextra -g3
+IFLAGS=-Iinclude/ -I.
+LDFLAGS=-L$(GBIT) -lgbit
 
-gbcpu: main.cpp GameBoyCPU.o
-	g++ -Wall -Wextra -c -o main.o main.cpp
-	g++ -o gbcpu main.o GameBoyCPU.o
+all: prepare TestCPU test
 
-GameBoyCPU.o: GameBoyCPU.cpp GameBoyCPU.hpp GameBoyMMap.hpp GameBoyRegisters.hpp GameBoyMemoryInterface.hpp GameBoyMockMMap.hpp
-	g++ -Wall -Wextra -c -o GameBoyCPU.o GameBoyCPU.cpp
+prepare:
+	@mkdir -p build
 
-TestCPU: TestCPU.o GameBoyCPU.o
-	g++ -o TestCPU TestCPU.o GameBoyCPU.o -Lgbit/ -lgbit
+test:
+	LD_LIBRARY_PATH=$(GBIT) ./TestCPU
 
-TestCPU.o:
-	g++ -Wall -Wextra -c -o TestCPU.o TestCPU.cpp
+TestCPU: build/TestCPU.o build/CPU.o
+	$(CXX) -o TestCPU build/TestCPU.o build/CPU.o $(LDFLAGS)
 
-disasm: test.gb
-	$(MGBDIS)/mgbdis.py --print-hex --overwrite --uppercase-hex test.gb
+build/TestCPU.o:
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/TestCPU.o src/test/TestCPU.cpp
 
-test.gb: test.ogb 
-	rgblink -o test.gb test.ogb
-	rgbfix -v -p 0xFF test.gb
-
-test.ogb: test.asm
-	rgbasm -L -o test.ogb test.asm
+build/CPU.o: src/cpu/CPU.cpp \
+			include/cpu/CPU.hpp \
+			include/cpu/MMap.hpp \
+			include/cpu/Registers.hpp \
+			include/cpu/MemoryInterface.hpp
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/CPU.o src/cpu/CPU.cpp
 
 clean:
-	rm *.o *.ogb *.gb gbcpu
+	rm -rf build/ TestCPU
+
 

@@ -2,7 +2,7 @@
 #define GBEMU_MMAP_HPP
 
 #include <cstdint>
-#include "GameBoyMemoryInterface.hpp"
+#include "cpu/MemoryInterface.hpp"
 
 namespace GameBoy
 {
