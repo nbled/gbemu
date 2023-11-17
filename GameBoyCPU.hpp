@@ -71,6 +71,10 @@ private:
     void DAA(void);
     void CPL(void);
 
+    /* Rotate implementations */
+    void RotateLeft(uint8_t *op, bool through_carry);
+    void RotateRight(uint8_t *op, bool through_carry);
+
     /* Jump implemntation */
     void JumpAbsoluteConditional(enum Condition cc, uint16_t address);
 

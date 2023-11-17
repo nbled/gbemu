@@ -58,6 +58,16 @@ Loop:
     ld a, e
     cp a, $ef
 
+    ld a, $ff
+    bit 0, a
+    bit 1, a
+    bit 2, a
+    bit 3, a
+    bit 4, a
+    bit 5, a
+    bit 6, a
+    bit 7, a
+
 Success:
     ld a, 1
     halt
