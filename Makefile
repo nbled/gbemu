@@ -6,7 +6,7 @@ CXXFLAGS=-Wall -Wextra -g3
 IFLAGS=-Iinclude/ -I.
 LDFLAGS=-L$(GBIT) -lgbit
 
-all: prepare TestCPU test
+all: prepare TestCPU
 
 prepare:
 	@mkdir -p build
@@ -17,7 +17,7 @@ test:
 TestCPU: build/TestCPU.o build/CPU.o
 	$(CXX) -o TestCPU build/TestCPU.o build/CPU.o $(LDFLAGS)
 
-build/TestCPU.o:
+build/TestCPU.o: src/test/TestCPU.cpp
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/TestCPU.o src/test/TestCPU.cpp
 
 build/CPU.o: src/cpu/CPU.cpp \

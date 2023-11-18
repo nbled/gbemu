@@ -80,12 +80,12 @@ void CPU::Step()
         /* LDH (c), a */
         this->mmap.WriteByte(0xff00 + this->registers.c, this->registers.a);
         this->lastInstr = "LDH (c), a";
-    } else if (opcode == 0xe0) {
+    } else if (opcode == 0xf0) {
         /* LDH a, (n) */
         uint8_t n = this->FetchByte();
         this->registers.a = this->mmap.LoadByte(0xff00 + n);
         this->lastInstr = "LDH a, (" + std::to_string(n) + ")";
-    } else if (opcode == 0xf0) {
+    } else if (opcode == 0xe0) {
         /* LDH (n), a */
         uint8_t n = this->FetchByte();
         this->mmap.WriteByte(0xff00 + n, this->registers.a);
@@ -116,42 +116,42 @@ void CPU::Step()
     else if ((opcode & 0xf8) == 0x80) {
         /* ADD a, r */
         uint8_t srcId = (opcode & 0x07);
-        this->AAdd(this->GetByteRegister(srcId));
+        this->AAdd(this->GetByteRegister(srcId), false);
         this->lastInstr = "ADD a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xc6) {
         /* ADD a, n */
         uint8_t n = this->FetchByte();
-        this->AAdd(n);
+        this->AAdd(n, false);
         this->lastInstr = "ADD a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x88) {
         /* ADC a, r */
         uint8_t srcId = (opcode & 0x07);
-        this->AAdd(this->GetByteRegister(srcId) + this->registers.GetCarry());
+        this->AAdd(this->GetByteRegister(srcId), this->registers.GetCarry());
         this->lastInstr = "ADC a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xce) {
         /* ADC a, n */
         uint8_t n = this->FetchByte();
-        this->AAdd(n + this->registers.GetCarry());
+        this->AAdd(n, this->registers.GetCarry());
         this->lastInstr = "ADC a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x90) {
         /* SUB a, r */
         uint8_t srcId = (opcode & 0x07);
-        this->ASub(this->GetByteRegister(srcId));
+        this->ASub(this->GetByteRegister(srcId), false);
         this->lastInstr = "SUB a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xd6) {
         /* SUB a, n */
         uint8_t n = this->FetchByte();
-        this->ASub(n);
+        this->ASub(n, false);
         this->lastInstr = "SUB a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x98) {
         /* SBC a, r */
         uint8_t srcId = (opcode & 0x07);
-        this->ASub(this->GetByteRegister(srcId) + this->registers.GetCarry());
+        this->ASub(this->GetByteRegister(srcId), this->registers.GetCarry());
         this->lastInstr = "SBC a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xde) {
         /* SBC a, n */
         uint8_t n = this->FetchByte();
-        this->ASub(n + this->registers.GetCarry());
+        this->ASub(n, this->registers.GetCarry());
         this->lastInstr = "SBC a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xa0) {
         /* AND a, r */
@@ -211,7 +211,7 @@ void CPU::Step()
         /* CPL */
         this->CPL();
         this->lastInstr = "CPL";
-    } else if (opcode == 0x37) {
+    } else if (opcode == 0x3f) {
         /* CCF */
         this->registers.SetSubstract(0);
         this->registers.SetHalfCarry(0);
@@ -220,7 +220,7 @@ void CPU::Step()
         else
             this->registers.SetCarry(1);
         this->lastInstr = "CCF";
-    } else if (opcode == 0x3f) {
+    } else if (opcode == 0x37) {
         /* SCF */
         this->registers.SetSubstract(0);
         this->registers.SetHalfCarry(0);
@@ -247,15 +247,13 @@ void CPU::Step()
     } else if (opcode == 0xf8) {
         /* LDHL SP, n */
         int8_t n = (int8_t) this->FetchByte();
-        this->registers.SetHalfCarry((((this->registers.sp & 0xff) + (n & 0xff)) & 0x100) >> 8);
-
-        uint32_t tmp = this->registers.sp + n;
-        this->registers.SetCarry((tmp & 0x10000) >> 16);
-
+        
+        this->registers.SetHalfCarry((((this->registers.sp & 0xf) + (n & 0xf)) & 0x10) >> 4);
+        this->registers.SetCarry((((this->registers.sp & 0xff) + (n & 0xff)) & 0x100) >> 8);
         this->registers.SetZero(0);
         this->registers.SetSubstract(0);
 
-        this->registers.SetHL(tmp);
+        this->registers.SetHL(this->registers.sp + n);
 
         this->lastInstr = "LDHL SP, " + std::to_string(n);
     } else if ((opcode & 0xcf) == 0xc5) {
@@ -277,12 +275,12 @@ void CPU::Step()
         uint8_t dstId = (opcode & 0x30) >> 4;
         uint16_t n = this->GetHalfWordRegister(dstId, false);
 
-        this->registers.SetHalfCarry((((this->registers.sp & 0xff) + (n & 0xff)) & 0x100) >> 8);
-
         uint32_t tmp = this->registers.GetHL() + n;
-        this->registers.SetCarry((tmp & 0x10000) >> 16);
+        /* https://stackoverflow.com/questions/57958631/game-boy-half-carry-flag-and-16-bit-instructions-especially-opcode-0xe8 */
+        uint8_t tmp_c = (uint16_t)(this->registers.l + (n & 0xff)) >> 8;
 
-        this->registers.SetZero(0);
+        this->registers.SetHalfCarry((((this->registers.h & 0xf) + ((n >> 8) & 0xf) + tmp_c) & 0x10) >> 4);
+        this->registers.SetCarry((tmp & 0x10000) >> 16);
         this->registers.SetSubstract(0);
 
         this->registers.SetHL(tmp);
@@ -291,15 +289,13 @@ void CPU::Step()
     } else if (opcode == 0xe8) {
         /* ADD SP, n */
         int8_t n = (int8_t) this->FetchByte();
-        this->registers.SetHalfCarry((((this->registers.sp & 0xff) + (n & 0xff)) & 0x100) >> 8);
 
-        uint32_t tmp = this->registers.sp + n;
-        this->registers.SetCarry((tmp & 0x10000) >> 16);
-
+        this->registers.SetHalfCarry((((this->registers.sp & 0xf) + (n & 0xf)) & 0x10) >> 4);
+        this->registers.SetCarry((((this->registers.sp & 0xff) + (n & 0xff)) & 0x100) >> 8);
         this->registers.SetZero(0);
         this->registers.SetSubstract(0);
-
-        this->registers.sp = tmp;
+        
+        this->registers.sp += n;
 
         this->lastInstr = "ADD SP, " + std::to_string(n);
     } else if ((opcode & 0xcf) == 0x03) {
@@ -330,37 +326,46 @@ void CPU::Step()
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
         uint16_t nn = this->FetchHalfWord();
 
-        this->JumpAbsoluteConditional(cc, nn);
+        if (this->IsConditionSatisfied(cc))
+            this->registers.pc = nn;
+        
         this->lastInstr = "JP " + this->GetConditionFormat(cc) + ", " + std::to_string(nn);
     } else if (opcode == 0xe9) {
-        /* JP (HL) */
-        this->registers.pc = this->mmap.LoadHalfWord(this->registers.GetHL());
+        /* JP HL */
+        this->registers.pc = this->registers.GetHL();
         this->lastInstr = "JP (HL)";
     } else if (opcode == 0x18) {
         /* JR n */
-        uint8_t n = this->FetchByte();
+        int8_t n = (int8_t) this->FetchByte();
         this->registers.pc += n;
         this->lastInstr = "JR " + std::to_string(n);
     } else if ((opcode & 0xe7) == 0x20) {
         /* JR cc, n */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
-        uint8_t n = this->FetchByte();
+        int8_t n = (int8_t) this->FetchByte();
 
-        this->JumpRelativeConditional(cc, n);
+        if (this->IsConditionSatisfied(cc))
+            this->registers.pc += n;
+        
         this->lastInstr = "JR" + this->GetConditionFormat(cc) + ", " + std::to_string(n);
     } else if (opcode == 0xcd) {
         /* CALL nn */
         uint16_t nn = this->FetchHalfWord();
+        
         this->Push(this->registers.pc);
         this->registers.pc = nn;
+
         this->lastInstr = "CALL " + std::to_string(nn);
     } else if ((opcode & 0xe7) == 0xc4) {
         /* CALL cc, nn */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
         uint16_t nn = this->FetchHalfWord();
 
-        this->Push(this->registers.pc);
-        this->JumpAbsoluteConditional((enum Condition) cc, nn);
+        if (this->IsConditionSatisfied(cc)) {
+            this->Push(this->registers.pc);
+            this->registers.pc = nn;
+        }
+
         this->lastInstr = "CALL " + this->GetConditionFormat(cc) + ", " + std::to_string(nn);
     } else if (opcode == 0xc9) {
         /* RET */
@@ -370,26 +375,8 @@ void CPU::Step()
         /* RET cc */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
 
-        switch (cc) {
-            case NZ:
-                if (!this->registers.GetZero())
-                    this->registers.pc = this->Pop();
-                break;
-            case Z:
-                if (this->registers.GetZero())
-                    this->registers.pc = this->Pop();
-                break;
-            case NC:
-                if (!this->registers.GetCarry())
-                    this->registers.pc = this->Pop();
-                break;
-            case C:
-                if (this->registers.GetCarry())
-                    this->registers.pc = this->Pop();
-                break;
-            default:
-                break;
-        }
+        if (this->IsConditionSatisfied(cc))
+            this->registers.pc = this->Pop();
 
         this->lastInstr = "RET " + this->GetConditionFormat(cc);
     } else if (opcode == 0xd9) {
@@ -402,7 +389,9 @@ void CPU::Step()
         uint8_t n = (opcode & 0x38) >> 3;
         uint8_t offset = n * 8;
 
+        this->Push(this->registers.pc);
         this->registers.pc = offset;
+
         this->lastInstr = "RST " + std::to_string(offset);
     }
 
@@ -410,18 +399,27 @@ void CPU::Step()
     else if (opcode == 0x07) {
         /* RLCA */
         this->RotateLeft(7, false);
+        /* For some reason Z is untouched when the op. is on A */
+        this->registers.SetZero(0);
+
         this->lastInstr = "RLCA";
     } else if (opcode == 0x17) {
         /* RLA */
         this->RotateLeft(7, true);
+        this->registers.SetZero(0);
+
         this->lastInstr = "RLA";
     } else if (opcode == 0x0F) {
         /* RRCA */ 
         this->RotateRight(7, false);
+        this->registers.SetZero(0);
+
         this->lastInstr = "RRCA"; 
     } else if (opcode == 0x1F) {
         /* RRA */
         this->RotateRight(7, true);
+        this->registers.SetZero(0);
+
         this->lastInstr = "RRA";
     } else if (opcode == 0xCB) {
         opcode = this->FetchByte();
@@ -446,7 +444,7 @@ void CPU::Step()
             uint8_t dstId = (opcode & 0x07);
             uint8_t reg = this->GetByteRegister(dstId);
 
-            this->registers.SetCarry((reg & 0x80) >> 7);
+            this->registers.SetCarry((reg & 0x01));
 
             reg = (reg & 0x80) | (reg >> 1);
             this->registers.SetZero(reg == 0);
@@ -529,6 +527,21 @@ void CPU::Step()
             this->lastInstr = "RES " + std::to_string(b) + ", " + this->GetOperandFormat(dstId);
         }
 
+        /* Swap ? */
+        else if ((opcode & 0xf8) == 0x30) {
+            /* SWAP n */
+            uint8_t dstId = (opcode & 0x07);
+            uint8_t reg = this->GetByteRegister(dstId);
+        
+            reg = (reg << 4) | (reg >> 4);
+
+            this->registers.SetZero(reg == 0);
+            this->registers.SetSubstract(0);
+            this->registers.SetHalfCarry(0);
+            this->registers.SetCarry(0);
+
+            this->SetByteRegister(dstId, reg);
+        }
         /* TODO: fail here */
     }
 
@@ -550,24 +563,23 @@ void CPU::Step()
         this->interrupts = true;
         this->lastInstr = "EI";
     } else if (opcode == 0x10) {
-        opcode = this->FetchByte();
-        if (opcode == 0) {
+        //opcode = this->FetchByte();
+        //if (opcode == 0) {
             this->status = StatusStopped;
             this->lastInstr = "STOP";
-        } 
+        //} 
         /* TODO: fail here */
     }
 
     /* TODO: fail here */
-    //this->Dump();
 }
 
-void CPU::AAdd(uint8_t value)
+void CPU::AAdd(uint8_t value, bool carry)
 {
-    this->registers.SetHalfCarry((((this->registers.a & 0xf) + (value & 0xf)) & 0x10) >> 4);
+    this->registers.SetHalfCarry((((this->registers.a & 0xf) + (value & 0xf) + carry) & 0x10) >> 4);
     this->registers.SetSubstract(0);
 
-    uint16_t tmp = this->registers.a + value;
+    uint16_t tmp = this->registers.a + value + carry;
     this->registers.SetCarry((tmp & 0x100) >> 8);
 
     this->registers.a = tmp & 0xff;
@@ -575,13 +587,13 @@ void CPU::AAdd(uint8_t value)
     this->registers.SetZero(this->registers.a == 0);
 }
 
-void CPU::ASub(uint8_t value)
+void CPU::ASub(uint8_t value, bool carry)
 {
-    this->registers.SetHalfCarry((value & 0xf) > (this->registers.a & 0xf));
-    this->registers.SetCarry(value > this->registers.a);
+    this->registers.SetHalfCarry((value & 0xf) + carry > (this->registers.a & 0xf));
+    this->registers.SetCarry(value + carry > this->registers.a);
     this->registers.SetSubstract(1);
 
-    this->registers.a -= value;
+    this->registers.a -= (value + carry);
 
     if (this->registers.a == 0)
         this->registers.SetZero(1);
@@ -678,25 +690,36 @@ void CPU::Dec(uint8_t id)
     this->SetByteRegister(id, reg);
 }
 
+/**
+ * https://faculty.kfupm.edu.sa/COE/aimane/assembly/pagegen-68.aspx.htm
+ * https://aplawrence.com/Basics/packedbcd.html
+ */
 void CPU::DAA(void)
 {
     uint8_t c = this->registers.GetCarry();
-    this->registers.SetCarry(0);
-    
-    uint8_t a = this->registers.a;
-    if ((a & 0x0f) > 0x09 || this->registers.GetHalfCarry())
-        a += 0x06;
-    if ((a & 0xf0) > 0x90 || c) {
-        a += 0x60;
-        this->registers.SetCarry(1);
+    uint16_t a = this->registers.a;
+
+    if (this->registers.GetSubstract()) {
+        if (this->registers.GetHalfCarry())
+            a += 0xfa;
+        if (this->registers.GetCarry())
+            a += 0xa0;
+    } else {
+        if ((a & 0x0f) > 0x09 || this->registers.GetHalfCarry())
+            a += 0x06;
+        
+        if ((a & 0x1f0) > 0x90 || c) {
+            a += 0x60;
+            this->registers.SetCarry(1);
+        } else {
+            this->registers.SetCarry(0);
+        }
     }
 
+    a &= 0xff;
+
     this->registers.SetHalfCarry(0);
-    if (a == 0)
-        this->registers.SetZero(1);
-    else
-        this->registers.SetZero(0);
-    
+    this->registers.SetZero(a == 0);
     this->registers.a = a;
 }
 
@@ -711,15 +734,15 @@ void CPU::RotateLeft(uint8_t id, bool through_carry)
 {
     uint8_t reg = this->GetByteRegister(id);
     uint8_t carry = this->registers.GetCarry();
-
-    this->registers.SetCarry((reg & 0x80) >> 7);
+    uint8_t msb = (reg & 0x80) >> 7;
 
     if (through_carry)
         reg = (reg << 1) | carry;
     else
-        reg = (reg << 1) | (reg & 0x01); 
+        reg = (reg << 1) | msb; 
 
     this->registers.SetZero(reg == 0);
+    this->registers.SetCarry(msb);    
     this->registers.SetSubstract(0);
     this->registers.SetHalfCarry(0);
 
@@ -730,43 +753,19 @@ void CPU::RotateRight(uint8_t id, bool through_carry)
 {
     uint8_t reg = this->GetByteRegister(id);
     uint8_t carry = this->registers.GetCarry();
-    
-    this->registers.SetCarry(reg & 0x01);
+    uint8_t lsb = reg & 0x01;
 
     if (through_carry)
         reg = (carry << 7) | (reg >> 1);
     else
-        reg = ((reg & 0x01) << 7) | (reg >> 1); 
+        reg = (lsb << 7) | (reg >> 1); 
 
     this->registers.SetZero(reg == 0);
+    this->registers.SetCarry(lsb);
     this->registers.SetSubstract(0);
     this->registers.SetHalfCarry(0);
 
     this->SetByteRegister(id, reg);
-}
-
-void CPU::JumpAbsoluteConditional(enum CPU::Condition cc, uint16_t address)
-{
-    switch (cc) {
-        case NZ:
-            if (!this->registers.GetZero())
-                this->registers.pc = address;
-            break;
-        case Z:
-            if (this->registers.GetZero())
-                this->registers.pc = address;
-            break;
-        case NC:
-            if (!this->registers.GetCarry())
-                this->registers.pc = address;
-            break;
-        case C:
-            if (this->registers.GetCarry())
-                this->registers.pc = address;
-            break;
-        default:
-            break;
-    }
 }
 
 };

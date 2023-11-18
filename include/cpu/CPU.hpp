@@ -60,8 +60,8 @@ private:
     }
 
     /* Arithmetic & logic implementations */
-    void AAdd(uint8_t value);
-    void ASub(uint8_t value);
+    void AAdd(uint8_t value, bool carry);
+    void ASub(uint8_t value, bool carry);
     void AAnd(uint8_t value);
     void AOr(uint8_t value);
     void AXor(uint8_t value);
@@ -74,14 +74,6 @@ private:
     /* Rotate implementations */
     void RotateLeft(uint8_t id, bool through_carry);
     void RotateRight(uint8_t id, bool through_carry);
-
-    /* Jump implemntation */
-    void JumpAbsoluteConditional(enum Condition cc, uint16_t address);
-
-    inline void JumpRelativeConditional(enum Condition cc, uint8_t offset)
-    {
-        this->JumpAbsoluteConditional(cc, this->registers.pc + offset);
-    }
 
     /* Stack implementation */
     inline void Push(uint16_t value)
@@ -135,7 +127,7 @@ private:
             case 2: this->registers.SetHL(hw); break;
             case 3: 
                 if (use_af) 
-                    this->registers.SetAF(hw);
+                    this->registers.SetAF(hw & 0xfff0);
                 else
                     this->registers.sp = hw;
                 break;
@@ -147,6 +139,20 @@ private:
 
     inline void IncHL(void) { this->registers.SetHL(this->registers.GetHL() + 1); }
     inline void DecHL(void) { this->registers.SetHL(this->registers.GetHL() - 1); }
+
+    bool IsConditionSatisfied(enum Condition cc)
+    {
+        switch (cc) {
+            case NZ:    return !this->registers.GetZero();
+            case Z:     return this->registers.GetZero();
+            case NC:    return !this->registers.GetCarry();
+            case C:     return this->registers.GetCarry();
+            default:
+                break;
+        }
+
+        return false;
+    }
 
     /* Display Functions */
     inline const std::string GetOperandFormat(uint8_t id) const
