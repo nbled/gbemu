@@ -83,37 +83,43 @@ private:
     uint8_t nROMBanks;
     uint8_t nRAMBanks;
 
+    bool isLoaded;
+
     void ParseType();
     void ParseRAMSize();
     void ParseROMSize();
 
 public:
+    Cartridge();
     Cartridge(const std::string& name);
     ~Cartridge();
 
-    inline const std::string GetTitle(void)
+    void Open(const std::string& name);
+    void Close(void);
+
+    inline const std::string GetTitle(void) const
     {
         const std::string s = reinterpret_cast<char*>(this->rawHeader->title);
         return s;
     }
 
-    inline enum MemoryBankController GetMBC(void)
+    inline enum MemoryBankController GetMBC(void) const
     {
         return this->mbc;
     }
 
-    inline bool HasRAM(void)    { return this->hasRAM; }
-    inline bool HasTimer(void)  { return this->hasTimer; }
+    inline bool HasRAM(void) const   { return this->hasRAM; }
+    inline bool HasTimer(void) const { return this->hasTimer; }
 
-    inline uint8_t NumberOfRAMBanks(void) { return this->nRAMBanks; }
-    inline uint8_t NumberOfROMBanks(void) { return this->nROMBanks; }
+    inline uint8_t NumberOfRAMBanks(void) const { return this->nRAMBanks; }
+    inline uint8_t NumberOfROMBanks(void) const { return this->nROMBanks; }
 
-    inline bool IsCGBModeEnabled(void)
+    inline bool IsCGBModeEnabled(void) const
     {
         return (this->rawHeader->cbgFlag == 0x80) || (this->rawHeader->cbgFlag == 0xC0);
     }
 
-    inline bool IsSGBModeEnabled(void)
+    inline bool IsSGBModeEnabled(void) const
     {
         return (this->rawHeader->sbgFlag == 0x03);
     }

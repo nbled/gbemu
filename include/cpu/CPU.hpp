@@ -115,9 +115,11 @@ private:
                 else
                     return this->registers.sp;
             default:
-                std::cout << "error" << std::endl;
                 break;
         }
+
+        /* We should not reach here */
+        throw std::runtime_error("Invalid halfword register id in instruction");
     }
 
     inline void SetHalfWordRegister(uint8_t id, uint16_t hw, bool use_af) {
@@ -132,9 +134,10 @@ private:
                     this->registers.sp = hw;
                 break;
             default:
-                std::cout << "error" << std::endl;
                 break;
         }
+
+        throw std::runtime_error("Invalid halfword register id in instruction");
     }
 
     inline void IncHL(void) { this->registers.SetHL(this->registers.GetHL() + 1); }

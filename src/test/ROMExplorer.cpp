@@ -8,7 +8,15 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    GameBoy::Cartridge rom(argv[1]);
+    GameBoy::Cartridge rom;
+
+    try {
+        rom.Open(argv[1]);
+    } catch (std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -1;
+    }
+
     std::cout << rom.GetTitle() << std::endl;
     
     std::cout << "| Features: " << GameBoy::EnumToString(rom.GetMBC());

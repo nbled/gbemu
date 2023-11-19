@@ -3,38 +3,55 @@
 namespace GameBoy
 {
 
+Cartridge::Cartridge() : isLoaded(false)
+{
+}
+
 Cartridge::Cartridge(const std::string& name)
+{
+    this->Open(name);
+}
+
+Cartridge::~Cartridge()
+{
+    this->Close();
+}
+
+void Cartridge::Open(const std::string& name)
 {
     /* Open file and get its size */
     std::ifstream handler;
     handler.open(name, std::ifstream::ate | std::ifstream::binary);
-    if (handler.fail()) {
-        /* TODO: throw error here */
-        this->contents = new uint8_t [1];
-        return;
-    }
+    if (handler.fail())
+        throw std::runtime_error("Cartridge file not found");
+    
     uint32_t size = handler.tellg();
-    if (size < 0x150) {
-        /* TODO: throw error here */
-        this->contents = new uint8_t [1];
-        return;
-    }
+    if (size < 0x150)
+        throw std::runtime_error("Cartridge too small");
+
     handler.seekg(0);
 
     /* Get file contents */
     this->contents = new uint8_t [size];
     handler.read(reinterpret_cast<char*>(contents), size);
+    handler.close();
     this->rawHeader = (struct RawCartridgeHeader*) &this->contents[0x100];
 
     /* Parse contents */
     this->ParseType();
     this->ParseRAMSize();
     this->ParseROMSize();
+
+    /* Loading finished */
+    this->isLoaded = true;
 }
 
-Cartridge::~Cartridge()
+void Cartridge::Close(void)
 {
-    delete this->contents;
+    if (this->isLoaded) {
+        delete this->contents;
+        this->isLoaded= false;
+    }
 }
 
 void Cartridge::ParseType()
@@ -97,9 +114,7 @@ void Cartridge::ParseType()
             this->hasRAM = true;
             break;
         default:
-            /* Not every combination is implemented */
-            /* throw error here */
-            break;
+            throw std::runtime_error("Unimplementend cartridge type");
     }
 }
 
@@ -116,16 +131,15 @@ void Cartridge::ParseRAMSize()
     } else if (this->rawHeader->ramSize == 0x05) {
         this->nRAMBanks = 8;
     } else {
-        /* throw error here */
+        throw std::runtime_error("Unrecognized \"RAM SIZE\" field of the cartridge");
     }
 }
 
 void Cartridge::ParseROMSize()
 {
     if (this->rawHeader->romSize > 0x08)
-        /* throw error here */
-        return;
-    
+        throw std::runtime_error("Unrecognized \"ROM SIZE\" field of the cartridge");
+
     this->nROMBanks = 1 << (1 + this->rawHeader->romSize);
 }
 

@@ -16,7 +16,6 @@ void CPU::Reset()
 
     this->cycles = 0;
 
-    /* TODO: fix lastInstrSize to handle jump correctly */
     this->lastInstr = "";
     this->lastPC = 0;
     this->lastInstrSize = 0;
@@ -542,7 +541,10 @@ void CPU::Step()
 
             this->SetByteRegister(dstId, reg);
         }
-        /* TODO: fail here */
+        
+        else {
+            throw std::runtime_error("Illegal Instruction");
+        }
     }
 
     
@@ -563,15 +565,18 @@ void CPU::Step()
         this->interrupts = true;
         this->lastInstr = "EI";
     } else if (opcode == 0x10) {
-        //opcode = this->FetchByte();
-        //if (opcode == 0) {
+        opcode = this->FetchByte();
+        if (opcode == 0) {
             this->status = StatusStopped;
             this->lastInstr = "STOP";
-        //} 
-        /* TODO: fail here */
+        } else {
+            throw std::runtime_error("Illegal Instruction");
+        }
     }
 
-    /* TODO: fail here */
+    else {
+        throw std::runtime_error("Illegal Instruction");
+    }
 }
 
 void CPU::AAdd(uint8_t value, bool carry)
