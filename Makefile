@@ -5,7 +5,7 @@ IFLAGS=-Iinclude -I.
 GBIT=gbit
 GBIT_LDFLAGS=-L$(GBIT) -lgbit
 
-all: prepare bin/TestCPU bin/ROMExplorer
+all: prepare bin/TestCPU bin/ROMExplorer bin/LoadBlob
 
 prepare:
 	@mkdir -p build
@@ -20,8 +20,14 @@ bin/TestCPU: build/TestCPU.o build/CPU.o
 bin/ROMExplorer: build/ROMExplorer.o build/Cartridge.o
 	$(CXX) -o bin/ROMExplorer build/ROMExplorer.o build/Cartridge.o
 
+bin/LoadBlob: build/LoadBlob.o build/CPU.o
+	$(CXX) -o bin/LoadBlob build/LoadBlob.o build/CPU.o
+
 build/TestCPU.o: src/test/TestCPU.cpp
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/TestCPU.o src/test/TestCPU.cpp
+
+build/LoadBlob.o: src/test/LoadBlob.cpp
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/LoadBlob.o src/test/LoadBlob.cpp
 
 build/ROMExplorer.o: src/test/ROMExplorer.cpp
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/ROMExplorer.o src/test/ROMExplorer.cpp
@@ -32,9 +38,10 @@ build/Cartridge.o: src/Cartridge.cpp \
 
 build/CPU.o: src/cpu/CPU.cpp \
 			include/cpu/CPU.hpp \
-			include/cpu/MMap.hpp \
 			include/cpu/Registers.hpp \
-			include/cpu/MemoryInterface.hpp
+			include/memory/MemoryMap.hpp \
+			include/memory/MemorySegment.hpp \
+			include/memory/MemoryInterface.hpp
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/CPU.o src/cpu/CPU.cpp
 
 clean:

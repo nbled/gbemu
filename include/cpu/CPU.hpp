@@ -7,7 +7,7 @@
 #include <string>
 
 #include "cpu/Registers.hpp"
-#include "cpu/MMap.hpp"
+#include "memory/MemoryMap.hpp"
 
 namespace GameBoy 
 {
@@ -134,10 +134,8 @@ private:
                     this->registers.sp = hw;
                 break;
             default:
-                break;
+                throw std::runtime_error("Invalid halfword register id in instruction");
         }
-
-        throw std::runtime_error("Invalid halfword register id in instruction");
     }
 
     inline void IncHL(void) { this->registers.SetHL(this->registers.GetHL() + 1); }
@@ -213,6 +211,11 @@ public:
     inline uint16_t GetPC(void) const
     {
         return this->registers.pc;
+    }
+
+    inline void SetPC(uint16_t pc)
+    {
+        this->registers.pc = pc;
     }
 
     inline enum Status GetStatus(void) const

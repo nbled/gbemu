@@ -29,8 +29,8 @@ int main(int argc, char *argv[])
     uint8_t nRAMBanks = rom.NumberOfRAMBanks();
     uint8_t nROMBanks = rom.NumberOfROMBanks();
     
-    std::cout << "| RAM Banks: " << std::to_string(nRAMBanks) << " (" << std::to_string(nRAMBanks * 32) << " KiB)" << std::endl;
-    std::cout << "| ROM Banks: " << std::to_string(nROMBanks) << " (" << std::to_string(nROMBanks * 32) << " KiB)" << std::endl;
+    std::cout << "| RAM Banks: " << std::to_string(nRAMBanks) << " (" << std::to_string(nRAMBanks * 16) << " KiB)" << std::endl;
+    std::cout << "| ROM Banks: " << std::to_string(nROMBanks) << " (" << std::to_string(nROMBanks * 16) << " KiB)" << std::endl;
 
     std::cout << "| CGB: ";
     if (rom.IsCGBModeEnabled())

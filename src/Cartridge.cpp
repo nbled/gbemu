@@ -49,7 +49,7 @@ void Cartridge::Open(const std::string& name)
 void Cartridge::Close(void)
 {
     if (this->isLoaded) {
-        delete this->contents;
+        delete [] this->contents;
         this->isLoaded= false;
     }
 }
