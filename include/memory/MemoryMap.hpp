@@ -16,9 +16,9 @@ private:
     std::vector<MemorySegment*> segments;
 
 public:
-    MemoryMap()
-    {
-        this->AddSegment(new MemorySegment("RAM", 0x0000, 0xFFFF, MemorySegment::Permissions::ReadWrite));
+    MemoryMap() {
+        this->AddSegment(new MemorySegment("WRAM0", 0xC000, 0xD000, GameBoy::MemorySegment::Permissions::ReadWrite));
+        this->AddSegment(new MemorySegment("WRAM1", 0xD000, 0xE000, GameBoy::MemorySegment::Permissions::ReadWrite));
     }
 
     void AddSegment(MemorySegment *segment)

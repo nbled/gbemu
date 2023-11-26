@@ -1,17 +1,12 @@
 #include <iostream>
 #include "Cartridge.hpp"
 
-int main(int argc, char *argv[])
+int8_t DumpROMInformations(const std::string& filename)
 {
-    if (argc != 2) {
-        std::cout << "usage: ./ROMExplorer <rom file>" << std::endl;
-        return 0;
-    }
-
     GameBoy::Cartridge rom;
 
     try {
-        rom.Open(argv[1]);
+        rom.Open(filename);
     } catch (std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return -1;
@@ -43,6 +38,21 @@ int main(int argc, char *argv[])
         std::cout << "Yes" << std::endl;
     else
         std::cout << "No" << std::endl;
+
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc < 2) {
+        std::cout << "usage: ./ROMExplorer <rom file(s)>" << std::endl;
+        return 0;
+    }
+
+    for (uint32_t i = 0; i < (uint32_t) argc - 1; i++) {
+        DumpROMInformations(argv[i + 1]);
+        std::cout << std::endl;
+    }
 
     return 0;
 }
