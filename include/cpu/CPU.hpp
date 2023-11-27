@@ -38,26 +38,48 @@ private:
     MemoryInterface& mmap;
     Registers registers;
 
-    /* Last executed instruction name */
-    std::string lastInstr;
-    /* Last executed instruction size */
-    uint8_t lastInstrSize;
-    /* Last executed instruction pc */
-    uint16_t lastPC;
+    /* Wrapper for memory functions to count cycles */
+    inline uint8_t LoadByteCycled(uint16_t address)
+    {
+        this->cycles += 4;
+        return this->mmap.LoadByte(address);
+    }
+
+    inline void WriteByteCycled(uint16_t address, uint8_t byte)
+    {
+        this->cycles += 4;
+        return this->mmap.WriteByte(address, byte);
+    }
+
+    inline uint8_t LoadHalfWordCycled(uint16_t address)
+    {
+        this->cycles += 8;
+        return this->mmap.LoadHalfWord(address);
+    }
+
+    inline void WriteHalfWordCycled(uint16_t address, uint16_t hw)
+    {
+        this->cycles += 8;
+        this->mmap.WriteHalfWord(address, hw);
+    }
 
     /* Helper functions to manipulate PC */
     inline uint8_t FetchByte(void)
     {
-        this->lastInstrSize++;
-        return this->mmap.LoadByte(this->registers.pc++);
+        return this->LoadByteCycled(this->registers.pc++);
     }
 
     inline uint16_t FetchHalfWord(void)
     {
-        this->lastInstrSize += 2;
-        uint16_t halfWord = this->mmap.LoadHalfWord(this->registers.pc);
+        uint16_t halfWord = this->LoadHalfWordCycled(this->registers.pc);
         this->registers.pc += 2;
         return halfWord;
+    }
+
+    inline void SetPCCycled(uint16_t pc)
+    {
+        this->cycles += 4;
+        this->registers.pc = pc;
     }
 
     /* Arithmetic & logic implementations */
@@ -80,12 +102,12 @@ private:
     inline void Push(uint16_t value)
     {
         this->registers.sp = this->registers.sp - 2;
-        this->mmap.WriteHalfWord(this->registers.sp, value);
+        this->WriteHalfWordCycled(this->registers.sp, value);
     }
 
     inline uint16_t Pop(void)
     {
-        uint16_t value = this->mmap.LoadHalfWord(this->registers.sp);
+        uint16_t value = this->LoadHalfWordCycled(this->registers.sp);
         this->registers.sp = this->registers.sp + 2;
         return value;
     }
@@ -94,14 +116,14 @@ private:
     inline uint8_t GetByteRegister(uint8_t id)
     {
         if (id == 6)
-            return this->mmap.LoadByte(this->registers.GetHL());
+            return this->LoadByteCycled(this->registers.GetHL());
         return (&this->registers.b)[id];
     }
 
     inline void SetByteRegister(uint8_t id, uint8_t n)
     {
         if (id == 6)
-            return this->mmap.WriteByte(this->registers.GetHL(), n);
+            this->WriteByteCycled(this->registers.GetHL(), n);
         (&this->registers.b)[id] = n;
     }
 
@@ -209,7 +231,7 @@ private:
 public:
     CPU(MemoryInterface& gbMMap);
     void Reset(void);
-    void Step(void);
+    uint64_t Step(void);
 
     inline uint16_t GetPC(void) const
     {
@@ -257,6 +279,7 @@ public:
         printf("\t%s\n", instr.GetString().c_str());
 
         this->registers.Dump();
+        printf("CYCLES: %ld\n\n", this->cycles);
     }
 };
 

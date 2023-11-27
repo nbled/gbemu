@@ -105,7 +105,6 @@ public:
 
         printf("SP = %04X\n", this->sp);
         printf("PC = %04X\n", this->pc);
-        printf("\n");
     }
 };
 

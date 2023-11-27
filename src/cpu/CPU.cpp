@@ -16,18 +16,11 @@ void CPU::Reset()
 
     this->cycles = 0;
 
-    this->lastInstr = "";
-    this->lastPC = 0;
-    this->lastInstrSize = 0;
-
     this->status = StatusRunning;
 }
 
-void CPU::Step()
+uint64_t CPU::Step()
 {
-    this->lastInstrSize = 0;
-    this->lastPC = this->registers.pc;
-
     uint8_t opcode = this->FetchByte();
 
     /* 8 bits loads */
@@ -37,78 +30,62 @@ void CPU::Step()
         uint8_t srcId = (opcode & 0x07);
 
         this->SetByteRegister(dstId, this->GetByteRegister(srcId));
-        this->lastInstr = "LD " + this->GetOperandFormat(dstId) + ", " + this->GetOperandFormat(srcId);
     } else if ((opcode & 0xc7) == 0x06) {
         /* LD r, n | r = n */
         uint8_t dstId = (opcode & 0x38) >> 3;
         uint8_t n = this->FetchByte();
 
         this->SetByteRegister(dstId, n);
-        this->lastInstr = "LD " + this->GetOperandFormat(dstId) + ", " + std::to_string(n);
     } else if (opcode == 0x0a) {
         /* LD a, (bc) */
-        this->registers.a = this->mmap.LoadByte(this->registers.GetBC());
-        this->lastInstr = "LD a, (bc)";
+        this->registers.a = this->LoadByteCycled(this->registers.GetBC());
     } else if (opcode == 0x1a) {
         /* LD a, (de) */
-        this->registers.a = this->mmap.LoadByte(this->registers.GetDE());
-        this->lastInstr = "LD a, (de)";
+        this->registers.a = this->LoadByteCycled(this->registers.GetDE());
     } else if (opcode == 0x02) {
         /* LD (bc), a */
-        this->mmap.WriteByte(this->registers.GetBC(), this->registers.a);
-        this->lastInstr = "LD (bc), a";
+        this->WriteByteCycled(this->registers.GetBC(), this->registers.a);
     } else if (opcode == 0x12) {
         /* LD (de), a */
-        this->mmap.WriteByte(this->registers.GetDE(), this->registers.a);
-        this->lastInstr = "LD (de), a";
+        this->WriteByteCycled(this->registers.GetDE(), this->registers.a);
     } else if (opcode == 0xfa) {
         /* LD A, (nn) */
         uint16_t nn = this->FetchHalfWord();
-        this->registers.a = this->mmap.LoadByte(nn);
-        this->lastInstr = "LD a, (" + std::to_string(nn) + ")";
+        this->registers.a = this->LoadByteCycled(nn);
     } else if (opcode == 0xea) {
         /* LD (nn), a */
         uint16_t nn = this->FetchHalfWord();
-        this->mmap.WriteByte(nn, this->registers.a);
-        this->lastInstr = "LD (" + std::to_string(nn) + "), a";
+        this->WriteByteCycled(nn, this->registers.a);
     } else if (opcode == 0xf2) {
         /* LDH a, (c) */
-        this->registers.a = this->mmap.LoadByte(0xff00 + this->registers.c);
-        this->lastInstr = "LDH a, (c)";
+        this->registers.a = this->LoadByteCycled(0xff00 + this->registers.c);
     } else if (opcode == 0xe2) {
         /* LDH (c), a */
-        this->mmap.WriteByte(0xff00 + this->registers.c, this->registers.a);
-        this->lastInstr = "LDH (c), a";
+        this->WriteByteCycled(0xff00 + this->registers.c, this->registers.a);
     } else if (opcode == 0xf0) {
         /* LDH a, (n) */
         uint8_t n = this->FetchByte();
-        this->registers.a = this->mmap.LoadByte(0xff00 + n);
-        this->lastInstr = "LDH a, (" + std::to_string(n) + ")";
+        this->registers.a = this->LoadByteCycled(0xff00 + n);
     } else if (opcode == 0xe0) {
         /* LDH (n), a */
         uint8_t n = this->FetchByte();
-        this->mmap.WriteByte(0xff00 + n, this->registers.a);
-        this->lastInstr = "LDH (" + std::to_string(n) + "), a";
+        this->WriteByteCycled(0xff00 + n, this->registers.a);
     } else if (opcode == 0x3a) {
         /* LD a, (HL-) */
-        this->registers.a = this->mmap.LoadByte(this->registers.GetHL());
+        this->registers.a = this->LoadByteCycled(this->registers.GetHL());
         this->DecHL();
-        this->lastInstr = "LD a, (HL-)";
     } else if (opcode == 0x32) {
         /* LD (HL-), a */
-        this->mmap.WriteByte(this->registers.GetHL(), this->registers.a);
+        this->WriteByteCycled(this->registers.GetHL(), this->registers.a);
         this->DecHL();
-        this->lastInstr = "LD (HL-), a";
     } else if (opcode == 0x2a) {
         /* LD a, (HL+) */
-        this->registers.a = this->mmap.LoadByte(this->registers.GetHL());
+        this->registers.a = this->LoadByteCycled(this->registers.GetHL());
         this->IncHL();
-        this->lastInstr = "LD a, (HL+)";
     } else if (opcode == 0x22) {
         /* LD (HL+), a */
-        this->mmap.WriteByte(this->registers.GetHL(), this->registers.a);
+        this->WriteByteCycled(this->registers.GetHL(), this->registers.a);
         this->IncHL();
-        this->lastInstr = "LD (HL+), a";
     }
 
     /* 8-bit ALU */
@@ -116,100 +93,80 @@ void CPU::Step()
         /* ADD a, r */
         uint8_t srcId = (opcode & 0x07);
         this->AAdd(this->GetByteRegister(srcId), false);
-        this->lastInstr = "ADD a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xc6) {
         /* ADD a, n */
         uint8_t n = this->FetchByte();
         this->AAdd(n, false);
-        this->lastInstr = "ADD a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x88) {
         /* ADC a, r */
         uint8_t srcId = (opcode & 0x07);
         this->AAdd(this->GetByteRegister(srcId), this->registers.GetCarry());
-        this->lastInstr = "ADC a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xce) {
         /* ADC a, n */
         uint8_t n = this->FetchByte();
         this->AAdd(n, this->registers.GetCarry());
-        this->lastInstr = "ADC a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x90) {
         /* SUB a, r */
         uint8_t srcId = (opcode & 0x07);
         this->ASub(this->GetByteRegister(srcId), false);
-        this->lastInstr = "SUB a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xd6) {
         /* SUB a, n */
         uint8_t n = this->FetchByte();
         this->ASub(n, false);
-        this->lastInstr = "SUB a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0x98) {
         /* SBC a, r */
         uint8_t srcId = (opcode & 0x07);
         this->ASub(this->GetByteRegister(srcId), this->registers.GetCarry());
-        this->lastInstr = "SBC a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xde) {
         /* SBC a, n */
         uint8_t n = this->FetchByte();
         this->ASub(n, this->registers.GetCarry());
-        this->lastInstr = "SBC a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xa0) {
         /* AND a, r */
         uint8_t srcId = (opcode & 0x07);
         this->AAnd(this->GetByteRegister(srcId));
-        this->lastInstr = "AND a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xe6) {
         /* AND a, n */
         uint8_t n = this->FetchByte();
         this->AAnd(n);
-        this->lastInstr = "AND a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xa8) {
         /* XOR a, r */
         uint8_t srcId = (opcode & 0x07);
         this->AXor(this->GetByteRegister(srcId));
-        this->lastInstr = "XOR a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xee) {
         /* XOR a, n */
         uint8_t n = this->FetchByte();
         this->AXor(n);
-        this->lastInstr = "XOR a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xb0) {
         /* OR a, r */
         uint8_t srcId = (opcode & 0x07);
         this->AOr(this->GetByteRegister(srcId));
-        this->lastInstr = "OR a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xf6) {
         /* OR a, n */
         uint8_t n = this->FetchByte();
         this->AOr(n);
-        this->lastInstr = "OR a, " + std::to_string(n);
     } else if ((opcode & 0xf8) == 0xb8) {
         /* CP a, r */
         uint8_t srcId = (opcode & 0x07);
         this->ACp(this->GetByteRegister(srcId));
-        this->lastInstr = "CP a, " + this->GetOperandFormat(srcId);
     } else if (opcode == 0xfe) {
         /* CP a, n */
         uint8_t n = this->FetchByte();
         this->ACp(n);
-        this->lastInstr = "CP a, " + std::to_string(n);
     } else if ((opcode & 0xc7) == 0x04) {
         /* INC r */
         uint8_t dstId = (opcode & 0x38) >> 3;
         this->Inc(dstId); 
-        this->lastInstr = "INC " + this->GetOperandFormat(dstId);
     } else if ((opcode & 0xc7) == 0x05) {
         /* DEC r */
         uint8_t dstId = (opcode & 0x38) >> 3;
         this->Dec(dstId);
-        this->lastInstr = "DEC " + this->GetOperandFormat(dstId);
     } else if (opcode == 0x27) {
         /* DAA */
         this->DAA();
-        this->lastInstr = "DAA";
     } else if (opcode == 0x2f) {
         /* CPL */
         this->CPL();
-        this->lastInstr = "CPL";
     } else if (opcode == 0x3f) {
         /* CCF */
         this->registers.SetSubstract(0);
@@ -218,13 +175,11 @@ void CPU::Step()
             this->registers.SetCarry(0);
         else
             this->registers.SetCarry(1);
-        this->lastInstr = "CCF";
     } else if (opcode == 0x37) {
         /* SCF */
         this->registers.SetSubstract(0);
         this->registers.SetHalfCarry(0);
         this->registers.SetCarry(1);
-        this->lastInstr = "SCF";
     }
 
     /* 16-bit loads */
@@ -233,16 +188,13 @@ void CPU::Step()
         uint8_t dstId = (opcode & 0x30) >> 4;
         uint16_t nn = this->FetchHalfWord();
         this->SetHalfWordRegister(dstId, nn, false);
-        this->lastInstr = "LD " + this->GetHalfWordFormat(dstId, false) + ", " + std::to_string(nn);
     } else if (opcode == 0x08) {
         /* LD (nn), SP */
         uint16_t nn = this->FetchHalfWord();
-        this->mmap.WriteHalfWord(nn, this->registers.sp);
-        this->lastInstr = "LD (" + std::to_string(nn) + "), SP";
+        this->WriteHalfWordCycled(nn, this->registers.sp);
     } else if (opcode == 0xf9) {
         /* LD SP, HL */
         this->registers.sp = this->registers.GetHL();
-        this->lastInstr = "LD SP, HL";
     } else if (opcode == 0xf8) {
         /* LDHL SP, n */
         int8_t n = (int8_t) this->FetchByte();
@@ -253,19 +205,15 @@ void CPU::Step()
         this->registers.SetSubstract(0);
 
         this->registers.SetHL(this->registers.sp + n);
-
-        this->lastInstr = "LDHL SP, " + std::to_string(n);
     } else if ((opcode & 0xcf) == 0xc5) {
         /* PUSH rr */
         uint8_t srcId = (opcode & 0x30) >> 4;
         uint16_t nn = this->GetHalfWordRegister(srcId, true);
         this->Push(nn);
-        this->lastInstr = "PUSH " + this->GetHalfWordFormat(srcId, true);
     } else if ((opcode & 0xcf) == 0xc1) {
         /* POP rr */
         uint8_t dstId = (opcode & 0x30) >> 4;
         this->SetHalfWordRegister(dstId, this->Pop(), true);
-        this->lastInstr = "POP " + this->GetHalfWordFormat(dstId, true);
     }
 
     /* 16-bits ALU */
@@ -283,8 +231,6 @@ void CPU::Step()
         this->registers.SetSubstract(0);
 
         this->registers.SetHL(tmp);
-
-        this->lastInstr = "ADD HL, " + this->GetHalfWordFormat(dstId, false);
     } else if (opcode == 0xe8) {
         /* ADD SP, n */
         int8_t n = (int8_t) this->FetchByte();
@@ -295,66 +241,49 @@ void CPU::Step()
         this->registers.SetSubstract(0);
         
         this->registers.sp += n;
-
-        this->lastInstr = "ADD SP, " + std::to_string(n);
     } else if ((opcode & 0xcf) == 0x03) {
         /* INC rr */
         uint8_t dstId = (opcode & 0x30) >> 4;
         this->SetHalfWordRegister(dstId, this->GetHalfWordRegister(dstId, false) + 1, false);
-        this->lastInstr = "INC " + this->GetHalfWordFormat(dstId, false);
     } else if ((opcode & 0xcf) == 0x0b) {
         /* DEC rr */
         uint8_t dstId = (opcode & 0x30) >> 4;
         this->SetHalfWordRegister(dstId, this->GetHalfWordRegister(dstId, false) - 1, false);
-        this->lastInstr = "DEC " + this->GetHalfWordFormat(dstId, false);
     }
 
     /* Control flow */
     else if (opcode == 0xc3) {
         /* JP nn */
-        uint16_t nn;
-
-        this->mmap.Load(this->registers.pc, (uint8_t*) &nn, sizeof(nn));
-        this->registers.pc += 2;
-  
-        this->registers.pc = nn;
-
-        this->lastInstr = "JP " + std::to_string(nn);
+        uint16_t nn = this->FetchHalfWord();
+        this->SetPCCycled(nn);
     } else if ((opcode & 0xe7) == 0xc2) {
         /* JP cc, nn */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
         uint16_t nn = this->FetchHalfWord();
 
         if (this->IsConditionSatisfied(cc))
-            this->registers.pc = nn;
-        
-        this->lastInstr = "JP " + this->GetConditionFormat(cc) + ", " + std::to_string(nn);
+            this->SetPCCycled(nn);
     } else if (opcode == 0xe9) {
         /* JP HL */
+        /* For unknown reason this takes 4 cycles instead of 8 ? */
         this->registers.pc = this->registers.GetHL();
-        this->lastInstr = "JP (HL)";
     } else if (opcode == 0x18) {
         /* JR n */
         int8_t n = (int8_t) this->FetchByte();
-        this->registers.pc += n;
-        this->lastInstr = "JR " + std::to_string(n);
+        this->SetPCCycled(this->registers.pc + n);
     } else if ((opcode & 0xe7) == 0x20) {
         /* JR cc, n */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
         int8_t n = (int8_t) this->FetchByte();
 
         if (this->IsConditionSatisfied(cc))
-            this->registers.pc += n;
-        
-        this->lastInstr = "JR" + this->GetConditionFormat(cc) + ", " + std::to_string(n);
+            this->SetPCCycled(this->registers.pc + n);
     } else if (opcode == 0xcd) {
         /* CALL nn */
         uint16_t nn = this->FetchHalfWord();
         
         this->Push(this->registers.pc);
-        this->registers.pc = nn;
-
-        this->lastInstr = "CALL " + std::to_string(nn);
+        this->SetPCCycled(nn);
     } else if ((opcode & 0xe7) == 0xc4) {
         /* CALL cc, nn */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
@@ -362,36 +291,28 @@ void CPU::Step()
 
         if (this->IsConditionSatisfied(cc)) {
             this->Push(this->registers.pc);
-            this->registers.pc = nn;
+            this->SetPCCycled(nn);
         }
-
-        this->lastInstr = "CALL " + this->GetConditionFormat(cc) + ", " + std::to_string(nn);
     } else if (opcode == 0xc9) {
         /* RET */
-        this->registers.pc = this->Pop();
-        this->lastInstr = "RET";
+        this->SetPCCycled(this->Pop());
     } else if ((opcode & 0xe7) == 0xc0) {
         /* RET cc */
         enum Condition cc = (enum Condition) ((opcode & 0x18) >> 3);
 
         if (this->IsConditionSatisfied(cc))
-            this->registers.pc = this->Pop();
-
-        this->lastInstr = "RET " + this->GetConditionFormat(cc);
+            this->SetPCCycled(this->Pop());
     } else if (opcode == 0xd9) {
         /* RETI */
-        this->registers.pc = this->Pop();
+        this->SetPCCycled(this->Pop());
         this->interrupts = true;
-        this->lastInstr = "RETI";
     } else if ((opcode & 0xc7) == 0xc7) {
         /* RST n */
         uint8_t n = (opcode & 0x38) >> 3;
         uint8_t offset = n * 8;
 
         this->Push(this->registers.pc);
-        this->registers.pc = offset;
-
-        this->lastInstr = "RST " + std::to_string(offset);
+        this->SetPCCycled(offset);
     }
 
     /* Shifts & Rotates */
@@ -400,26 +321,18 @@ void CPU::Step()
         this->RotateLeft(7, false);
         /* For some reason Z is untouched when the op. is on A */
         this->registers.SetZero(0);
-
-        this->lastInstr = "RLCA";
     } else if (opcode == 0x17) {
         /* RLA */
         this->RotateLeft(7, true);
         this->registers.SetZero(0);
-
-        this->lastInstr = "RLA";
     } else if (opcode == 0x0F) {
         /* RRCA */ 
         this->RotateRight(7, false);
         this->registers.SetZero(0);
-
-        this->lastInstr = "RRCA"; 
     } else if (opcode == 0x1F) {
         /* RRA */
         this->RotateRight(7, true);
         this->registers.SetZero(0);
-
-        this->lastInstr = "RRA";
     } else if (opcode == 0xCB) {
         opcode = this->FetchByte();
 
@@ -436,8 +349,6 @@ void CPU::Step()
             this->registers.SetSubstract(0);
 
             this->SetByteRegister(dstId, reg);
-
-            this->lastInstr = "SLA " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xf8) == 0x28) {
             /* SRA n */
             uint8_t dstId = (opcode & 0x07);
@@ -451,8 +362,6 @@ void CPU::Step()
             this->registers.SetSubstract(0);
 
             this->SetByteRegister(dstId, reg);
-
-            this->lastInstr = "SRA " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xf8) == 0x38) {
             /* SRL n */
             uint8_t dstId = (opcode & 0x07);
@@ -466,28 +375,22 @@ void CPU::Step()
             this->registers.SetSubstract(0);
 
             this->SetByteRegister(dstId, reg);
-
-            this->lastInstr = "SRL " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xf8) == 0x00) {
             /* RLC n */
             uint8_t dstId = (opcode & 0x07);
             this->RotateLeft(dstId, false);
-            this->lastInstr = "RLC " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xf8) == 0x10) {
             /* RL n */
             uint8_t dstId = (opcode & 0x07);
             this->RotateLeft(dstId, true);
-            this->lastInstr = "RL " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xf8) == 0x08) {
             /* RRC n */
             uint8_t dstId = (opcode & 0x07);
             this->RotateRight(dstId, false);
-            this->lastInstr = "RRC " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xf8) == 0x18) {
             /* RR n */
             uint8_t dstId = (opcode & 0x07);
             this->RotateRight(dstId, true);
-            this->lastInstr = "RR " + this->GetOperandFormat(dstId);
         }
 
         /* Bit manipulation */
@@ -500,8 +403,6 @@ void CPU::Step()
             this->registers.SetZero(!(reg & (1 << b)));
             this->registers.SetSubstract(0);
             this->registers.SetHalfCarry(1);
-
-            this->lastInstr = "BIT " + std::to_string(b) + ", " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xc0) == 0xc0) {
             /* SET b, n */
             uint8_t b = (opcode & 0x38) >> 3;
@@ -511,8 +412,6 @@ void CPU::Step()
             reg |= (1 << b);
             
             this->SetByteRegister(dstId, reg);
-
-            this->lastInstr = "SET " + std::to_string(b) + ", " + this->GetOperandFormat(dstId);
         } else if ((opcode & 0xc0) == 0x80) {
             /* RES b, n */
             uint8_t b = (opcode & 0x38) >> 3;
@@ -522,8 +421,6 @@ void CPU::Step()
             reg &= ~(1 << b);
 
             this->SetByteRegister(dstId, reg);
-
-            this->lastInstr = "RES " + std::to_string(b) + ", " + this->GetOperandFormat(dstId);
         }
 
         /* Swap ? */
@@ -551,24 +448,19 @@ void CPU::Step()
     /* Misc & System */
     else if (opcode == 0x00) {
         /* NOP */
-        this->lastInstr = "NOP";
     } else if (opcode == 0x76) {
         /* HALT */
         this->status = StatusHalted;
-        this->lastInstr = "HALT";
     } else if (opcode == 0xF3) {
         /* DI */
         this->interrupts = false;
-        this->lastInstr = "DI";
     } else if (opcode == 0xFB) {
         /* EI */
         this->interrupts = true;
-        this->lastInstr = "EI";
     } else if (opcode == 0x10) {
         opcode = this->FetchByte();
         //if (opcode == 0) {
             this->status = StatusStopped;
-            this->lastInstr = "STOP";
         //} else {
         //    throw std::runtime_error("Illegal Instruction");
         //}
@@ -577,6 +469,8 @@ void CPU::Step()
     else {
         throw std::runtime_error("Illegal Instruction");
     }
+
+    return this->cycles;
 }
 
 void CPU::AAdd(uint8_t value, bool carry)

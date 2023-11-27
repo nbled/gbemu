@@ -41,12 +41,12 @@ int main(int argc, char *argv[])
         contents));
     cpu.SetPC(0x0000);
 
-    std::vector<uint16_t> bps;
-    bps.push_back(0x000C);
+    /*std::vector<uint16_t> bps;
+    bps.push_back(0x000C);*/
     
     while (cpu.GetStatus() == GameBoy::CPU::StatusRunning) {
-        if (std::find(bps.begin(), bps.end(), cpu.GetPC()) != bps.end())
-            break;
+        //if (std::find(bps.begin(), bps.end(), cpu.GetPC()) != bps.end())
+        //    break;
         cpu.Dump();
         cpu.Step();
         std::getchar();
