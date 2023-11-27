@@ -5,7 +5,20 @@ IFLAGS=-Iinclude -I.
 GBIT=gbit
 GBIT_LDFLAGS=-L$(GBIT) -lgbit
 
-all: prepare bin/TestCPU bin/ROMExplorer bin/LoadBlob
+MODULES=CPU \
+	Instruction \
+	InstructionSet \
+	Cartridge
+TOOLS=TestCPU \
+	ROMExplorer \
+	LoadBlob
+
+OBJECTS:=$(addsuffix .o, $(MODULES))
+OBJECTS:=$(addprefix build/, $(OBJECTS))
+
+TARGETS=$(addprefix bin/, $(TOOLS))
+
+all: prepare $(TARGETS)
 
 prepare:
 	@mkdir -p build
@@ -14,43 +27,23 @@ prepare:
 test:
 	LD_LIBRARY_PATH=$(GBIT) ./TestCPU
 
-bin/TestCPU: build/TestCPU.o build/CPU.o build/Instruction.o build/InstructionSet.o
-	$(CXX) -o bin/TestCPU build/TestCPU.o build/CPU.o build/Instruction.o build/InstructionSet.o $(GBIT_LDFLAGS)
+bin/TestCPU: build/TestCPU.o $(OBJECTS)
+	$(CXX) -o $@ $^ $(GBIT_LDFLAGS)
 
-bin/ROMExplorer: build/ROMExplorer.o build/Cartridge.o build/Instruction.o build/InstructionSet.o
-	$(CXX) -o bin/ROMExplorer build/ROMExplorer.o build/Cartridge.o build/Instruction.o build/InstructionSet.o
+bin/ROMExplorer: build/ROMExplorer.o $(OBJECTS)
+	$(CXX) -o $@ $^
 
-bin/LoadBlob: build/LoadBlob.o build/CPU.o build/Instruction.o  build/Instruction.o build/InstructionSet.o
-	$(CXX) -o bin/LoadBlob build/LoadBlob.o build/CPU.o build/Instruction.o build/InstructionSet.o
+bin/LoadBlob: build/LoadBlob.o $(OBJECTS)
+	$(CXX) -o $@ $^
 
-build/TestCPU.o: src/test/TestCPU.cpp 
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/TestCPU.o src/test/TestCPU.cpp
+build/%.o: src/tools/%.cpp
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o $@ $^
 
-build/LoadBlob.o: src/test/LoadBlob.cpp include/cpu/CPU.hpp include/memory/MemoryMap.hpp
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/LoadBlob.o src/test/LoadBlob.cpp
+build/%.o: src/cpu/%.cpp
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o $@ $^
 
-build/ROMExplorer.o: src/test/ROMExplorer.cpp
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/ROMExplorer.o src/test/ROMExplorer.cpp
-
-build/Cartridge.o: src/Cartridge.cpp \
-			include/Cartridge.hpp
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/Cartridge.o src/Cartridge.cpp
-
-build/CPU.o: src/cpu/CPU.cpp \
-			include/cpu/CPU.hpp \
-			include/cpu/Registers.hpp \
-			include/memory/MemoryMap.hpp \
-			include/memory/MemorySegment.hpp \
-			include/memory/MemoryInterface.hpp
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/CPU.o src/cpu/CPU.cpp
-
-build/Instruction.o: build/InstructionSet.o \
-				src/cpu/Instruction.cpp \
-				include/cpu/Instruction.hpp
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/Instruction.o src/cpu/Instruction.cpp
-
-build/InstructionSet.o: src/cpu/InstructionSet.cpp
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o build/InstructionSet.o src/cpu/InstructionSet.cpp
+build/%.o: src/%.cpp
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -o $@ $^
 
 clean:
 	rm -rf bin/ build/
