@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include "gbit/lib/tester.h"
-#include "cpu/MemoryInterface.hpp"
+#include "memory/MemoryInterface.hpp"
 
 namespace GameBoy
 {

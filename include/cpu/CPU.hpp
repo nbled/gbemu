@@ -7,6 +7,7 @@
 #include <string>
 
 #include "cpu/Registers.hpp"
+#include "cpu/Instruction.hpp"
 #include "memory/MemoryMap.hpp"
 
 namespace GameBoy 
@@ -203,6 +204,8 @@ private:
         return "";
     }
 
+    Instruction DecodeNextInstruction() const;
+
 public:
     CPU(MemoryInterface& gbMMap);
     void Reset(void);
@@ -244,12 +247,14 @@ public:
     }
 
     void Dump(void) const {
-        /* TODO: fix the current system, we should be able to decode instruction before executing it */
-        printf("%04X: ", this->lastPC);
-        for (uint16_t address = this->lastPC; address < this->lastPC + this->lastInstrSize; address++) {
-            printf("%02X ", this->mmap.LoadByte(address));
+        /* FIXME: lots of copies :( */
+        Instruction instr = this->DecodeNextInstruction();
+        printf("%04X: ", this->GetPC());
+        std::vector<uint8_t> bytecode = instr.GetBytecode();
+        for (uint8_t byte : bytecode) {
+            printf("%02X ", byte);
         }
-        printf("\t%s\n", this->lastInstr.c_str());
+        printf("\t%s\n", instr.GetString().c_str());
 
         this->registers.Dump();
     }

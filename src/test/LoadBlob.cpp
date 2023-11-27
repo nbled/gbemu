@@ -39,7 +39,6 @@ int main(int argc, char *argv[])
         "ROM", 0x0000, size, 
         GameBoy::MemorySegment::Permissions::ReadWrite, 
         contents));
-    std::cout << mmap.LoadByte(0)<< std::endl;
     cpu.SetPC(0x0000);
 
     std::vector<uint16_t> bps;
@@ -50,13 +49,12 @@ int main(int argc, char *argv[])
             break;
         cpu.Dump();
         cpu.Step();
+        std::getchar();
     }
 
     while (cpu.GetStatus() == GameBoy::CPU::StatusRunning) {
         cpu.Dump();
         cpu.Step();
-        
-        std::getchar();
     }
 
     delete [] contents;

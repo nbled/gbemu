@@ -39,6 +39,9 @@ public:
     void Load(uint16_t address, uint8_t *bytes, uint16_t size) const
     {
         /* TODO: see for cross segments accesses */
+        /*if (address >= 0xFF00 && address < 0xFF7F)
+            printf("read access to I/O register %04X\n", address);
+        */
         MemorySegment *segment = this->GetSegment(address);
         if (segment)
             segment->Load(address, bytes, size);
@@ -60,6 +63,9 @@ public:
 
     void Write(uint16_t address, const uint8_t *bytes, uint16_t size)
     {
+        /*if (address >= 0xFF00 && address < 0xFF7F)
+            printf("write access to I/O register %04X\n", address);
+        */
         MemorySegment *segment = this->GetSegment(address);
         if (segment)
             segment->Write(address, bytes, size);

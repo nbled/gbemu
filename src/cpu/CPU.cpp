@@ -3,7 +3,7 @@
 namespace GameBoy 
 {
 
-CPU::CPU(MemoryInterface &mmap) : mmap(mmap) 
+CPU::CPU(MemoryInterface &mmap) : mmap(mmap)
 {
     this->Reset();
 }
@@ -566,12 +566,12 @@ void CPU::Step()
         this->lastInstr = "EI";
     } else if (opcode == 0x10) {
         opcode = this->FetchByte();
-        if (opcode == 0) {
+        //if (opcode == 0) {
             this->status = StatusStopped;
             this->lastInstr = "STOP";
-        } else {
-            throw std::runtime_error("Illegal Instruction");
-        }
+        //} else {
+        //    throw std::runtime_error("Illegal Instruction");
+        //}
     }
 
     else {
@@ -771,6 +771,35 @@ void CPU::RotateRight(uint8_t id, bool through_carry)
     this->registers.SetHalfCarry(0);
 
     this->SetByteRegister(id, reg);
+}
+
+Instruction CPU::DecodeNextInstruction() const
+{
+    uint8_t fakePC = this->GetPC();
+    uint8_t opcode = this->mmap.LoadByte(fakePC++);
+
+    bool isCB = false;
+
+    if (opcode == 0xCB) {
+        isCB = true;
+        opcode = this->mmap.LoadByte(fakePC++);
+    }
+
+    Instruction instr(opcode, isCB);
+    switch (instr.GetBaseInstruction()->GetArgumentType()) {
+        case Immediate8:
+            instr.SetByteArgument(this->mmap.LoadByte(fakePC++));
+            break;
+        case Immediate16:
+            instr.SetHalfwordArgument(this->mmap.LoadHalfWord(fakePC));
+            fakePC += 2;
+            break;
+        case NoImmediate:
+        default:
+            break;
+    }
+
+    return instr;
 }
 
 };

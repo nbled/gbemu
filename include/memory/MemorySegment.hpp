@@ -68,7 +68,7 @@ public:
             if (!this->ContainsAddress(address + i))
                 throw std::runtime_error("Address out of bounds in segment");
 
-            bytes[i] = this->memory[address + i];
+            bytes[i] = this->memory[address - this->begin + i];
         }
     }
 
@@ -95,7 +95,7 @@ public:
             if (!this->ContainsAddress(address + i))
                 throw std::runtime_error("Address out of bounds in segment");
 
-            this->memory[address + i] = bytes[i];
+            this->memory[address - this->begin + i] = bytes[i];
         }
     }
 
